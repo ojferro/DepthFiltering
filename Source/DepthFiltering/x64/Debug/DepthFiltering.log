@@ -1,0 +1,15 @@
+﻿  Disparity.cpp
+d:\depthfiltering\source\depthfiltering\disparity.cpp(67): warning C4474: 'sprintf' : too many arguments passed for format string
+  d:\depthfiltering\source\depthfiltering\disparity.cpp(67): note: placeholders and their parameters expect 0 variadic arguments, but 1 were provided
+d:\depthfiltering\source\depthfiltering\disparity.cpp(68): warning C4474: 'sprintf' : too many arguments passed for format string
+  d:\depthfiltering\source\depthfiltering\disparity.cpp(68): note: placeholders and their parameters expect 0 variadic arguments, but 1 were provided
+d:\depthfiltering\source\depthfiltering\disparity.cpp(69): warning C4474: 'sprintf' : too many arguments passed for format string
+  d:\depthfiltering\source\depthfiltering\disparity.cpp(69): note: placeholders and their parameters expect 0 variadic arguments, but 1 were provided
+d:\depthfiltering\source\depthfiltering\disparity.cpp(70): warning C4474: 'sprintf' : too many arguments passed for format string
+  d:\depthfiltering\source\depthfiltering\disparity.cpp(70): note: placeholders and their parameters expect 0 variadic arguments, but 1 were provided
+d:\depthfiltering\source\depthfiltering\disparity.cpp(71): warning C4474: 'sprintf' : too many arguments passed for format string
+  d:\depthfiltering\source\depthfiltering\disparity.cpp(71): note: placeholders and their parameters expect 0 variadic arguments, but 1 were provided
+d:\depthfiltering\source\depthfiltering\disparity.cpp(72): warning C4474: 'sprintf' : too many arguments passed for format string
+  d:\depthfiltering\source\depthfiltering\disparity.cpp(72): note: placeholders and their parameters expect 0 variadic arguments, but 1 were provided
+  DepthFiltering.vcxproj -> D:\DepthFiltering\Source\x64\Debug\DepthFiltering.exe
+  DepthFiltering.vcxproj -> D:\DepthFiltering\Source\x64\Debug\DepthFiltering.pdb (Full PDB)
