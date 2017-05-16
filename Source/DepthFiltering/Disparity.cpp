@@ -19,6 +19,14 @@ Mat imgL;
 Mat imgR;
 Mat disp16S;
 Mat disp8U;
+//////////////////////Trackbar Stuff/////////////////////////
+int H_MIN = 3;
+int H_MAX = 256;
+int S_MIN = 0;
+int S_MAX = 0;
+int V_MIN = 43;
+int V_MAX = 111;
+
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
 
@@ -30,7 +38,7 @@ void findDisparity() {
 	Ptr<StereoSGBM> sbm = StereoSGBM::create(
 		0,    //int minDisparity
 		96,     //int numDisparities
-		11,      //int SADWindowSize ~~ 5
+		21,      //int SADWindowSize ~~ 5
 		600,    //int P1 = 0
 		2400,   //int P2 = 0
 		20,     //int disp12MaxDiff = 0
@@ -50,16 +58,12 @@ void findDisparity() {
 
 }
 
-//void on_trackbar(int, void*) {}
+void on_trackbar(int, void*) {
+	
+}
 
-void showTrackbars() {	//100% standalone function to set parameters. TODO: Make a function that calculates the parameters based on a min and max DISTANCE from the camera.
-	int H_MIN = 0;
-	int H_MAX = 256;
-	int S_MIN = 0;
-	int S_MAX = 256;
-	int V_MIN = 0;
-	int V_MAX = 256;
-
+void showTrackbars() {	//Standalone function to set parameters. TODO: Make a function that calculates the parameters based on a min and max DISTANCE from the camera.
+						//If function is removed, remove global variables "Trackbar Stuff" above
 	String windowName = "Trackbars";
 	int const numNames = 6;
 
@@ -85,7 +89,7 @@ void showTrackbars() {	//100% standalone function to set parameters. TODO: Make 
 
 int main(int argc, char** argv) {
 
-	if (argc != 4) {
+	if (argc == 0) {
 		cout << "Not enough arguments" << endl;
 		return -1;
 	}
@@ -119,7 +123,29 @@ int main(int argc, char** argv) {
 	
 	////////////////////////////////////////////////////////////
 
-	//showTrackbars();
+	showTrackbars();
+
+	Mat HSVimg = Mat::zeros (disp8U.size(), disp8U.type());
+	Mat threshold = Mat::zeros (HSVimg.size(), HSVimg.type());
+	Mat masked = Mat::zeros(HSVimg.size(), HSVimg.type());
+	applyColorMap(disp8U, HSVimg, COLORMAP_RAINBOW);
+
+	namedWindow("HSV Map", WINDOW_AUTOSIZE);
+	namedWindow("Threshold", WINDOW_AUTOSIZE);
+	namedWindow("Masked", WINDOW_AUTOSIZE);
+	while (true) {
+		inRange(HSVimg, Scalar(H_MIN, S_MIN, V_MIN), Scalar(H_MAX, S_MAX, V_MAX), threshold);
+		imshow("HSV Map", HSVimg);
+		imshow("Threshold", threshold);
+		imwrite("Thresholded.jpg", threshold);
+
+		HSVimg.copyTo(masked, threshold);
+		//bitwise_and(threshold, HSVimg, masked);
+		imshow ("Masked", masked);
+		waitKey(30);
+	}
+	
+
 
 	waitKey(0);
 	return 0;
