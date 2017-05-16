@@ -13,22 +13,27 @@
 using namespace cv;
 using namespace std;
 
-/////////////////////GLOBAL VARIABLES////////////////////////
-/////////////////////////////////////////////////////////////
+/////////////////////GLOBAL VARIABLES//////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
 Mat imgL;
 Mat imgR;
 Mat disp16S;
 Mat disp8U;
-//////////////////////Trackbar Stuff/////////////////////////
+
+const int FRAME_WIDTH = 640;
+const int FRAME_HEIGHT = 480;
+
+const bool webcam = false;
+//////////////////////Trackbar Stuff///////////////////////////////////////////////////////
 int H_MIN = 3;
 int H_MAX = 256;
 int S_MIN = 0;
-int S_MAX = 0;
+int S_MAX = 256;
 int V_MIN = 43;
 int V_MAX = 111;
 
-/////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
 
 void findDisparity() {
 	//int ndisparities = 128;
@@ -63,17 +68,16 @@ void on_trackbar(int, void*) {
 }
 
 void showTrackbars() {	//Standalone function to set parameters. TODO: Make a function that calculates the parameters based on a min and max DISTANCE from the camera.
-						//If function is removed, remove global variables "Trackbar Stuff" above
 	String windowName = "Trackbars";
 	int const numNames = 6;
 
 	char TrackbarNames[numNames];
-	sprintf(TrackbarNames, "H_MIN", H_MIN);
-	sprintf(TrackbarNames, "H_MAX", H_MAX);
-	sprintf(TrackbarNames, "S_MIN", S_MIN);
-	sprintf(TrackbarNames, "S_MAX", S_MAX);
-	sprintf(TrackbarNames, "V_MIN", V_MIN);
-	sprintf(TrackbarNames, "V_MAX", V_MAX);
+	sprintf(TrackbarNames, "H_MIN");
+	sprintf(TrackbarNames, "H_MAX");
+	sprintf(TrackbarNames, "S_MIN");
+	sprintf(TrackbarNames, "S_MAX");
+	sprintf(TrackbarNames, "V_MIN");
+	sprintf(TrackbarNames, "V_MAX");
 
 	namedWindow(windowName, 0);
 	createTrackbar("H_MIN", windowName, &H_MIN, H_MAX, NULL);
@@ -94,18 +98,32 @@ int main(int argc, char** argv) {
 		return -1;
 	}
 
-	imgL = imread(argv[1], CV_LOAD_IMAGE_GRAYSCALE);
-	imgR = imread(argv[2], CV_LOAD_IMAGE_GRAYSCALE);
-	disp16S = Mat(imgL.rows, imgL.cols, CV_16S);
-	disp8U = Mat(imgL.rows, imgL.cols, CV_8UC1);
+	if (!webcam) {
+		imgL = imread(argv[1], CV_LOAD_IMAGE_GRAYSCALE);
+		imgR = imread(argv[2], CV_LOAD_IMAGE_GRAYSCALE);
+		disp16S = Mat(imgL.rows, imgL.cols, CV_16S);
+		disp8U = Mat(imgL.rows, imgL.cols, CV_8UC1);
 
-	if (imgL.empty() || imgR.empty()) {
-		cout << "Could not load image";
-		return -1;
+		if (imgL.empty() || imgR.empty()) {
+			cout << "Could not load image";
+			return -1;
+		}
+
+		cout << "Calculating Disparity Map...\n";
 	}
+	else {
+		VideoCapture capL;
+		capL.open(0);
+		capL.set(CV_CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
+		capL.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
+		VideoCapture capR;
+		capR.open(1);
+		capR.set(CV_CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
+		capR.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
 
-	cout << "Calculating Disparity Map...\n";
-	findDisparity();
+		disp16S = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_16S);
+		disp8U = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1);
+	}
 	
 	//////////////////////////////OUTPUT////////////////////////
 	/*
@@ -115,8 +133,8 @@ int main(int argc, char** argv) {
 	namedWindow("Right Img.", WINDOW_AUTOSIZE);
 	imshow("Right Img.", imgR);
 	*/
-	namedWindow("Disparity Map", WINDOW_AUTOSIZE);
-	imshow("Disparity Map", disp8U);
+	//namedWindow("Disparity Map", WINDOW_AUTOSIZE);
+	//imshow("Disparity Map", disp8U);
 	
 	
 	//imwrite(argv[3], disp8U);
@@ -125,9 +143,11 @@ int main(int argc, char** argv) {
 
 	showTrackbars();
 
+	findDisparity();
+
 	Mat HSVimg = Mat::zeros (disp8U.size(), disp8U.type());
-	Mat threshold = Mat::zeros (HSVimg.size(), HSVimg.type());
-	Mat masked = Mat::zeros(HSVimg.size(), HSVimg.type());
+	Mat threshold = HSVimg;
+	Mat masked = HSVimg;
 	applyColorMap(disp8U, HSVimg, COLORMAP_RAINBOW);
 
 	namedWindow("HSV Map", WINDOW_AUTOSIZE);
