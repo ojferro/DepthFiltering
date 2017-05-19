@@ -1,4 +1,9 @@
-//Oswaldo Ferro - Last edit: 15 May 2017
+﻿//Oswaldo Ferro - Last edit: 15 May 2017
+
+/*
+Non-webcam stuff is working fine
+Have not tried webcam stuff
+*/
 #include <opencv2/stereo/stereo.hpp>
 #include <opencv2/core/core.hpp>
 #include "opencv2/calib3d/calib3d.hpp"
@@ -7,7 +12,9 @@
 #include <opencv2/calib3d.hpp>
 #include <stdio.h>
 #include <iostream>
+#include <iomanip>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/aruco.hpp>
 
 
 using namespace cv;
@@ -19,6 +26,8 @@ Mat imgL;
 Mat imgR;
 Mat disp16S;
 Mat disp8U;
+VideoCapture capL;
+VideoCapture capR;
 
 const int FRAME_WIDTH = 640;
 const int FRAME_HEIGHT = 480;
@@ -35,7 +44,7 @@ int V_MAX = 111;
 ///////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-void findDisparity() {
+void findDisparity(Mat imgL, Mat imgR) {
 	//int ndisparities = 128;
 	//int SADWindowSize = 25;
 	//Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
@@ -91,8 +100,26 @@ void showTrackbars() {	//Standalone function to set parameters. TODO: Make a fun
 
 }
 
-int main(int argc, char** argv) {
+bool init_cams() {
+	capL.open(0);
+	capR.open(0);
+	if (!capL.isOpened() || !capR.isOpened()) {
+		cout << "Not open";
+		return false;
+	}
+	
+	capL.set(CV_CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
+	capL.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
+	
+	capR.set(CV_CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
+	capR.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
+}
 
+
+/*
+int main(int argc, char** argv) {
+	Calibrator c = Calibrator (argc, argv);
+	//captureImgs();
 	if (argc == 0) {
 		cout << "Not enough arguments" << endl;
 		return -1;
@@ -112,17 +139,14 @@ int main(int argc, char** argv) {
 		cout << "Calculating Disparity Map...\n";
 	}
 	else {
-		VideoCapture capL;
-		capL.open(0);
-		capL.set(CV_CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
-		capL.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
-		VideoCapture capR;
-		capR.open(1);
-		capR.set(CV_CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
-		capR.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
-
+		if (!init_cams())
+			return 1;
+		
 		disp16S = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_16S);
 		disp8U = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1);
+		
+		capL.read(imgL);
+		capR.read(imgR);
 	}
 	
 	//////////////////////////////OUTPUT////////////////////////
@@ -132,6 +156,9 @@ int main(int argc, char** argv) {
 
 	namedWindow("Right Img.", WINDOW_AUTOSIZE);
 	imshow("Right Img.", imgR);
+
+	waitKey(0);
+	return 1;
 	*/
 	//namedWindow("Disparity Map", WINDOW_AUTOSIZE);
 	//imshow("Disparity Map", disp8U);
@@ -140,10 +167,9 @@ int main(int argc, char** argv) {
 	//imwrite(argv[3], disp8U);
 	
 	////////////////////////////////////////////////////////////
-
+/*
 	showTrackbars();
-
-	findDisparity();
+	findDisparity(imgL, imgR);
 
 	Mat HSVimg = Mat::zeros (disp8U.size(), disp8U.type());
 	Mat threshold = HSVimg;
@@ -153,21 +179,19 @@ int main(int argc, char** argv) {
 	namedWindow("HSV Map", WINDOW_AUTOSIZE);
 	namedWindow("Threshold", WINDOW_AUTOSIZE);
 	namedWindow("Masked", WINDOW_AUTOSIZE);
-	while (true) {
+	do {
 		inRange(HSVimg, Scalar(H_MIN, S_MIN, V_MIN), Scalar(H_MAX, S_MAX, V_MAX), threshold);
 		imshow("HSV Map", HSVimg);
 		imshow("Threshold", threshold);
 		imwrite("Thresholded.jpg", threshold);
 
 		HSVimg.copyTo(masked, threshold);
-		//bitwise_and(threshold, HSVimg, masked);
 		imshow ("Masked", masked);
 		waitKey(30);
-	}
+	} while (webcam);
 	
-
-
 	waitKey(0);
 	return 0;
 }
 
+*/
