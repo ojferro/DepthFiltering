@@ -4,6 +4,8 @@
 Non-webcam stuff is working fine
 Have not tried webcam stuff
 */
+
+
 #include <opencv2/stereo/stereo.hpp>
 #include <opencv2/core/core.hpp>
 #include "opencv2/calib3d/calib3d.hpp"
@@ -14,7 +16,7 @@ Have not tried webcam stuff
 #include <iostream>
 #include <iomanip>
 #include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/aruco.hpp>
+//#include <opencv2/aruco.hpp>
 
 
 using namespace cv;
@@ -64,29 +66,41 @@ int V_MAX = 111;
 ///////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-void findDisparity(Mat imgL, Mat imgR) {
-	//int ndisparities = 128;
-	//int SADWindowSize = 25;
+void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
+	int ndisparities = 256; //16
+	int SADWindowSize = 9; //9
+	int minDisparity = -45;
 	//Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
-/*
-	Ptr<StereoSGBM> sbm = StereoSGBM::create(
-		0,    //int minDisparity
-		96,     //int numDisparities
-		21,      //int SADWindowSize ~~ 5
-		600,    //int P1 = 0
-		2400,   //int P2 = 0
-		20,     //int disp12MaxDiff = 0
-		16,     //int preFilterCap = 0
-		1,      //int 0 = uniquenessRatio
-		100,    //int speckleWindowSize = 0
-		20,     //int speckleRange = 0
-		true);  //bool fullDP = false
-*/
-	int ndisparities = 16; //512
-	int SADWindowSize = 9; //21
 
-	Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
+	//Ptr<StereoSGBM> sbm = StereoSGBM::create(
+	//	minDisparity,    //int minDisparity
+	//	ndisparities,     //int numDisparities
+	//	SADWindowSize,    //int SADWindowSize ~~ 5
+	//	600,    //int P1 = 0  ~~600
+	//	2400,   //int P2 = 0	~~2400
+	//	20,     //int disp12MaxDiff = 0
+	//	16,     //int preFilterCap = 0
+	//	5,      //int 0 = uniquenessRatio	~~1
+	//	100,    //int speckleWindowSize = 0
+	//	20,     //int speckleRange = 0
+	//	false);  //bool fullDP = false
+
+	
+
+	Ptr<StereoBM> sbm = StereoBM::create (ndisparities, SADWindowSize);
 	sbm->setPreFilterCap (32);
+	//sbm->setPreFilterType(StereoBM::PREFILTER_XSOBEL);
+	//sbm->setROI1(roiL);
+	//sbm->setROI2(roiR);
+	//sbm->setMinDisparity(-10);
+	sbm->setTextureThreshold(15);
+	//sbm->setPreFilterSize(5);
+	//sbm->setPreFilterCap (31);
+	//sbm->setUniquenessRatio (15);
+	sbm->setSpeckleWindowSize (0);
+	sbm->setSpeckleRange (5);
+	//sbm->setDisp12MaxDiff(1);
+	
 
 	sbm->compute(imgL, imgR, disp16S);
 
@@ -179,7 +193,7 @@ int main(int argc, char** argv) {
 			return -1;
 		}
 
-	CommandLineParser parser(argc, argv, "{w|9|}{h|6|}{s|1.0|}{nr||}{help||}{@input|../data/stereo_calib.xml|}{iL|Images/L_calibration000.png|}{iR|Images/R_calibration000.png|}");
+	CommandLineParser parser(argc, argv, "{w|9|}{h|6|}{s|1.0|}{nr||}{help||}{@input|../data/stereo_calib.xml|}{iL|Images/meL-1meter.png|}{iR|Images/meR-1meter.png|}");
 	String imgLfn = parser.get<string>("iL");
 	String imgRfn = parser.get<string>("iR");
 
@@ -241,8 +255,9 @@ int main(int argc, char** argv) {
 	
 	////////////////////////////////////////////////////////////
 
-	showTrackbars();
-	stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, 0.0, imageSize, 0, 0);
+	//showTrackbars();
+	Rect roiL, roiR;
+	stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, 0.0, imageSize, &roiL, &roiR);
 
 	Mat rmap[2][2];
 	initUndistortRectifyMap(M1, D1, R1, P1, imageSize, CV_16SC2, rmap[0][0], rmap[0][1]);
@@ -266,8 +281,9 @@ int main(int argc, char** argv) {
 	imshow("rimgR", rimgR);
 
 	/////////////////////////////////////////////
-	findDisparity(rimgL, rimgR);//Outputs disparity map to disp16S
+	findDisparity(rimgL, rimgR, roiL, roiR);//Outputs disparity map to disp16S
 	imshow("Disp8U", disp8U);
+
 	waitKey(0);
 
 	Mat HSVimg = Mat::zeros (disp8U.size(), disp8U.type());
@@ -292,4 +308,3 @@ int main(int argc, char** argv) {
 	waitKey(0);
 	return 0;
 }
-
