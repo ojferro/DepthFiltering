@@ -286,22 +286,25 @@ int main(int argc, char** argv) {
 
 	waitKey(0);
 
-	Mat HSVimg = Mat::zeros (disp8U.size(), disp8U.type());
-	Mat threshold = HSVimg;
-	Mat masked = HSVimg;
-	applyColorMap(disp8U, HSVimg, COLORMAP_RAINBOW);
+	Mat threshold = disp8U;
+	Mat maskedL = disp8U;
+	Mat maskedR = disp8U;
 
-	namedWindow("HSV Map", WINDOW_AUTOSIZE);
-	namedWindow("Threshold", WINDOW_AUTOSIZE);
-	namedWindow("Masked", WINDOW_AUTOSIZE);
+	//for debugging purposes only//
+	Mat colour_disp8U;	
+	applyColorMap(disp8U, colour_disp8U, COLORMAP_RAINBOW);
+	///////////////////////////////
+	Mat crimgL;
+	Mat crimgR;
+	cvtColor(rimgL, crimgL, CV_GRAY2BGR);
+	imshow("crimgL", crimgL);
+
 	do {
-		inRange(HSVimg, Scalar(H_MIN, S_MIN, V_MIN), Scalar(H_MAX, S_MAX, V_MAX), threshold);
-		imshow("HSV Map", HSVimg);
-		imshow("Threshold", threshold);
-		imwrite("Thresholded.jpg", threshold);
 
-		HSVimg.copyTo(masked, threshold);
-		imshow ("Masked", masked);
+		rimgL.copyTo(maskedL, threshold);
+		rimgR.copyTo(maskedR, threshold);
+		imshow ("MaskedL", maskedL);
+		imshow("MaskedR", maskedR);
 		waitKey(30);
 	} while (false);
 	
