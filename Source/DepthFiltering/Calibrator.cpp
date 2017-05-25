@@ -15,12 +15,12 @@
 //using namespace cv;
 //using namespace std;
 //
-//#define INTRINSICS_FILE_PATH = "Data/intrinsics.yml"
-//#define EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
+////#define INTRINSICS_FILE_PATH = "Data/intrinsics.yml"
+////#define EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
+//const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
+//const String EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
 //
 //class Calibrator {
-//	//const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
-//	//const String EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
 //
 //public:
 //	Calibrator(int argc, char** argv) {

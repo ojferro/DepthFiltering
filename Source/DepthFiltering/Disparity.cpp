@@ -16,7 +16,7 @@ Have not tried webcam stuff
 #include <iostream>
 #include <iomanip>
 #include <opencv2/imgproc/imgproc.hpp>
-//#include <opencv2/aruco.hpp>
+#include <opencv2/aruco.hpp>
 
 
 using namespace cv;
@@ -68,8 +68,8 @@ int V_MAX = 111;
 
 void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
 	int ndisparities = 256; //16
-	int SADWindowSize = 9; //9
-	int minDisparity = -45;
+	int SADWindowSize = 15; //9
+	int minDisparity = 0;
 	//Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
 
 	//Ptr<StereoSGBM> sbm = StereoSGBM::create(
@@ -85,21 +85,20 @@ void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
 	//	20,     //int speckleRange = 0
 	//	false);  //bool fullDP = false
 
-	
 
 	Ptr<StereoBM> sbm = StereoBM::create (ndisparities, SADWindowSize);
-	sbm->setPreFilterCap (32);
+	//sbm->setPreFilterCap (32);
 	//sbm->setPreFilterType(StereoBM::PREFILTER_XSOBEL);
-	//sbm->setROI1(roiL);
-	//sbm->setROI2(roiR);
-	//sbm->setMinDisparity(-10);
+	sbm->setROI1(roiL);
+	sbm->setROI2(roiR);
+	sbm->setMinDisparity(-10);
 	sbm->setTextureThreshold(15);
-	//sbm->setPreFilterSize(5);
-	//sbm->setPreFilterCap (31);
-	//sbm->setUniquenessRatio (15);
+	sbm->setPreFilterSize(5);
+	sbm->setPreFilterCap (31);
+	sbm->setUniquenessRatio (15);
 	sbm->setSpeckleWindowSize (0);
 	sbm->setSpeckleRange (5);
-	//sbm->setDisp12MaxDiff(1);
+	sbm->setDisp12MaxDiff(1);
 	
 
 	sbm->compute(imgL, imgR, disp16S);
@@ -108,7 +107,7 @@ void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
 	minMaxLoc(disp16S, &minVal, &maxVal);
 	printf("Min disp: %f Max value: %f \n", minVal, maxVal);
 
-	disp16S.convertTo(disp8U, CV_8UC1, 255/(maxVal - minVal));
+	disp16S.convertTo(disp8U, CV_8UC1, 255/(ndisparities*16.0));
 
 }
 
@@ -257,7 +256,7 @@ int main(int argc, char** argv) {
 
 	//showTrackbars();
 	Rect roiL, roiR;
-	stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, 0.0, imageSize, &roiL, &roiR);
+	stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q);// , CALIB_ZERO_DISPARITY, 0.0, imageSize, &roiL, &roiR);
 
 	Mat rmap[2][2];
 	initUndistortRectifyMap(M1, D1, R1, P1, imageSize, CV_16SC2, rmap[0][0], rmap[0][1]);
@@ -277,12 +276,26 @@ int main(int argc, char** argv) {
 	remap(imgR, rimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
 	cvtColor(rimgR, cimgR, COLOR_GRAY2BGR);
 
+
+
+	//THIS IS THE NEW THING FOR DRAWING EPILINES THAT DOESNT WORK YET!!!
+	/*vector<uchar> array;
+	if (mat.isContinuous()) {
+		array.assign(mat.datastart, mat.dataend);
+	}
+	else {
+		for (int i = 0; i < mat.rows; ++i) {
+			array.insert(array.end(), mat.ptr<uchar>(i), mat.ptr<uchar>(i) + mat.cols);
+		}*/
+	
+
 	imshow("rimgL", rimgL);
 	imshow("rimgR", rimgR);
 
 	/////////////////////////////////////////////
 	findDisparity(rimgL, rimgR, roiL, roiR);//Outputs disparity map to disp16S
 	imshow("Disp8U", disp8U);
+	imshow("Disp16S", disp16S);
 
 	waitKey(0);
 
