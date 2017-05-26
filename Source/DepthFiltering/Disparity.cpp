@@ -91,7 +91,7 @@ void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
 	//sbm->setPreFilterType(StereoBM::PREFILTER_XSOBEL);
 	//sbm->setROI1(roiL);
 	//sbm->setROI2(roiR);
-	sbm->setMinDisparity(0);
+	sbm->setMinDisparity(-40);
 	//sbm->setTextureThreshold(15);
 	//sbm->setPreFilterSize(5);
 	//sbm->setPreFilterCap (31);
@@ -256,7 +256,7 @@ int main(int argc, char** argv) {
 
 	//showTrackbars();
 	Rect roiL, roiR;
-	stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q);// , CALIB_ZERO_DISPARITY, 0.0, imageSize, &roiL, &roiR);
+	stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q);// , CALIB_ZERO_DISPARITY, -1, imageSize, &roiL, &roiR);
 
 	Mat rmap[2][2];
 	initUndistortRectifyMap(M1, D1, R1, P1, imageSize, CV_16SC2, rmap[0][0], rmap[0][1]);
@@ -275,6 +275,9 @@ int main(int argc, char** argv) {
 	cvtColor(rimgL, cimgL, COLOR_GRAY2BGR);
 	remap(imgR, rimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
 	cvtColor(rimgR, cimgR, COLOR_GRAY2BGR);
+
+	imwrite("rectifiedL.png", rimgL);
+	imwrite("rectifiedR.png", rimgR);
 
 	Mat H;
 	hconcat(rimgL, rimgR, H);
@@ -320,10 +323,12 @@ int main(int argc, char** argv) {
 
 	do {
 
-		rimgL.copyTo(maskedL, threshold);
-		rimgR.copyTo(maskedR, threshold);
+		imgL.copyTo(maskedL, threshold);
+		imgR.copyTo(maskedR, threshold);
 		imshow ("MaskedL", maskedL);
 		imshow("MaskedR", maskedR);
+		String fn = "MaskedImgLSWAPPED.png";
+		imwrite(fn, maskedL);
 		waitKey(30);
 	} while (false);
 	
