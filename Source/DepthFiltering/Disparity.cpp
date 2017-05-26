@@ -68,7 +68,7 @@ int V_MAX = 111;
 
 void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
 	int ndisparities = 256; //16
-	int SADWindowSize = 15; //9
+	int SADWindowSize = 11; //9
 	int minDisparity = 0;
 	//Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
 
@@ -89,15 +89,15 @@ void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
 	Ptr<StereoBM> sbm = StereoBM::create (ndisparities, SADWindowSize);
 	//sbm->setPreFilterCap (32);
 	//sbm->setPreFilterType(StereoBM::PREFILTER_XSOBEL);
-	sbm->setROI1(roiL);
-	sbm->setROI2(roiR);
-	sbm->setMinDisparity(-10);
-	sbm->setTextureThreshold(15);
-	sbm->setPreFilterSize(5);
-	sbm->setPreFilterCap (31);
-	sbm->setUniquenessRatio (15);
-	sbm->setSpeckleWindowSize (0);
-	sbm->setSpeckleRange (5);
+	//sbm->setROI1(roiL);
+	//sbm->setROI2(roiR);
+	sbm->setMinDisparity(0);
+	//sbm->setTextureThreshold(15);
+	//sbm->setPreFilterSize(5);
+	//sbm->setPreFilterCap (31);
+	//sbm->setUniquenessRatio (15);
+	sbm->setSpeckleWindowSize (100);
+	sbm->setSpeckleRange (10);
 	sbm->setDisp12MaxDiff(1);
 	
 
@@ -270,13 +270,19 @@ int main(int argc, char** argv) {
 	h = cvRound(imageSize.height*sf);
 	canvas.create(h * 2, w, CV_8UC3);*/
 
-	Mat rimgL, rimgR;// cimgL, cimgR;
+	Mat rimgL, rimgR;
 	remap(imgL, rimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
 	cvtColor(rimgL, cimgL, COLOR_GRAY2BGR);
 	remap(imgR, rimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
 	cvtColor(rimgR, cimgR, COLOR_GRAY2BGR);
 
+	Mat H;
+	hconcat(rimgL, rimgR, H);
 
+	int distBtwnLines = 20;
+	for (int l = 0; l < H.rows; l += distBtwnLines)
+		line(H, Point(0, l), Point(H.cols, l), Scalar(0, 0, 255));
+	imshow("Combo", H);
 
 	//THIS IS THE NEW THING FOR DRAWING EPILINES THAT DOESNT WORK YET!!!
 	/*vector<uchar> array;
