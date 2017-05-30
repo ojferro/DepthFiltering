@@ -44,7 +44,7 @@
 //
 //
 //	static void
-//		StereoCalib(const vector<string>& imagelist, Size boardSize, float squareSize, bool displayCorners = false, bool useCalibrated = true, bool showRectified = true)
+//		StereoCalib(const vector<string>& imagelist, Size boardSize, float squareSize, bool displayCorners = false, bool useCalibrated = false, bool showRectified = true)
 //	{
 //		if (imagelist.size() % 2 != 0)
 //		{
@@ -170,13 +170,20 @@
 //			cameraMatrix[1], distCoeffs[1],
 //			imageSize, R, T, E, F,
 //			CALIB_FIX_ASPECT_RATIO +
+//
+//			CALIB_USE_INTRINSIC_GUESS +
+//			CALIB_SAME_FOCAL_LENGTH,
+//			TermCriteria(TermCriteria::COUNT + TermCriteria::EPS, 100, 1e-5));	// removed CALIB_USE_INTRINSIC_GUESS +
+//		cout << "done with RMS error=" << rms << endl;
+//
+//		/*CALIB_FIX_ASPECT_RATIO +
 //			CALIB_ZERO_TANGENT_DIST +
 //			CALIB_USE_INTRINSIC_GUESS +
 //			CALIB_SAME_FOCAL_LENGTH +
 //			CALIB_RATIONAL_MODEL +
-//			CALIB_FIX_K3 + CALIB_FIX_K4 + CALIB_FIX_K5,
-//			TermCriteria(TermCriteria::COUNT + TermCriteria::EPS, 100, 1e-5));
-//		cout << "done with RMS error=" << rms << endl;
+//			CALIB_FIX_K3 + CALIB_FIX_K4 + CALIB_FIX_K5,*/
+//
+//
 //
 //		// CALIBRATION QUALITY CHECK
 //		// because the output fundamental matrix implicitly
@@ -301,6 +308,9 @@
 //				Mat img = imread(goodImageList[i * 2 + k], 0), rimg, cimg;
 //				remap(img, rimg, rmap[k][0], rmap[k][1], INTER_LINEAR);
 //				cvtColor(rimg, cimg, COLOR_GRAY2BGR);
+//				char fn[64];
+//				sprintf(fn, "rimg%d.png", k);
+//				imwrite(fn, rimg);
 //				Mat canvasPart = !isVerticalStereo ? canvas(Rect(w*k, 0, w, h)) : canvas(Rect(0, h*k, w, h));
 //				resize(cimg, canvasPart, canvasPart.size(), 0, 0, INTER_AREA);
 //				if (useCalibrated)

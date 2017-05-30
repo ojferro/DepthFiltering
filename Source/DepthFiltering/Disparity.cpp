@@ -19,6 +19,7 @@ Have not tried webcam stuff
 #include <opencv2/aruco.hpp>
 
 
+
 using namespace cv;
 using namespace std;
 
@@ -55,23 +56,38 @@ const bool calibrated = true;
 
 const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
 const String EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
-//////////////////////Trackbar Stuff///////////////////////////////////////////////////////
+//////////////////////Masking Trackbar Stuff///////////////////////////////////////////////
 int H_MIN = 3;
 int H_MAX = 256;
 int S_MIN = 0;
 int S_MAX = 256;
 int V_MIN = 43;
 int V_MAX = 111;
+//////////////////////Disparity Trackbar Variables/////////////////////////////////////////
+int ndisparities = 128;
+//int ndisparitiesChange = ndisparities;
+int SADWindowSize = 51;
+int minDisparity = 0;
+int preFilterCap = 16;
+int preFilterType = 0;
+int preFilterSize = 40;
+int textureThreshold = 0;
+int uniquenessRatio = 0;
+int speckleWindowSize = 0;
+int speckleRange = 0;
+int disp12MaxDiff = 0;
+
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
 
 void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
-	int ndisparities = 256; //16
-	int SADWindowSize = 11; //9
-	int minDisparity = 0;
-	//Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
-
+	//int ndisparities = 128; //16
+	//int SADWindowSize = 9; //9
+	//int minDisparity = 0;
+	
+	///////////////////////STEREO SGBM////////////////////////////////
 	//Ptr<StereoSGBM> sbm = StereoSGBM::create(
 	//	minDisparity,    //int minDisparity
 	//	ndisparities,     //int numDisparities
@@ -84,39 +100,43 @@ void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
 	//	100,    //int speckleWindowSize = 0
 	//	20,     //int speckleRange = 0
 	//	false);  //bool fullDP = false
+	//////////////////////////////////////////////////////////////////
 
+	Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
 
-	Ptr<StereoBM> sbm = StereoBM::create (ndisparities, SADWindowSize);
-	//sbm->setPreFilterCap (32);
-	//sbm->setPreFilterType(StereoBM::PREFILTER_XSOBEL);
 	//sbm->setROI1(roiL);
 	//sbm->setROI2(roiR);
-	sbm->setMinDisparity(-40);
-	//sbm->setTextureThreshold(15);
-	//sbm->setPreFilterSize(5);
-	//sbm->setPreFilterCap (31);
-	//sbm->setUniquenessRatio (15);
-	sbm->setSpeckleWindowSize (100);
-	sbm->setSpeckleRange (10);
-	sbm->setDisp12MaxDiff(1);
+
+	//sbm->setPreFilterSize(16);	//issues
+	sbm->setPreFilterCap (preFilterCap);	//must be >16
+	sbm->setPreFilterType(preFilterType);
+	sbm->setMinDisparity(minDisparity);
+	sbm->setTextureThreshold(textureThreshold);
+	sbm->setUniquenessRatio (uniquenessRatio);
+	sbm->setSpeckleWindowSize (speckleWindowSize);
+	sbm->setSpeckleRange (speckleRange);
+	sbm->setDisp12MaxDiff(disp12MaxDiff);
+	sbm->setNumDisparities((ndisparities/16)*16);
+	sbm->setSmallerBlockSize((SADWindowSize % 2==1) ? SADWindowSize : (SADWindowSize + 1) );
+	cout << ndisparities<<endl;
 	
 
 	sbm->compute(imgL, imgR, disp16S);
 
-	double maxVal, minVal;
+	/*double maxVal, minVal;
 	minMaxLoc(disp16S, &minVal, &maxVal);
 	printf("Min disp: %f Max value: %f \n", minVal, maxVal);
+	*/
 
 	disp16S.convertTo(disp8U, CV_8UC1, 255/(ndisparities*16.0));
-
 }
 
 void on_trackbar(int, void*) {
-	
+	//ndisparities = (ndisparitiesChange % 16 == 0) ? ndisparitiesChange : (ndisparities/16)*16;
 }
 
-void showTrackbars() {	//Standalone function to set parameters. TODO: Make a function that calculates the parameters based on a min and max DISTANCE from the camera.
-	String windowName = "Trackbars";
+void maskingTrackbars() {	//Standalone function to set parameters. TODO: Make a function that calculates the parameters based on a min and max DISTANCE from the camera.
+	String windowName = "MaskingTrackbars";
 	int const numNames = 6;
 
 	char TrackbarNames[numNames];
@@ -135,8 +155,46 @@ void showTrackbars() {	//Standalone function to set parameters. TODO: Make a fun
 	createTrackbar("V_MIN", windowName, &V_MIN, V_MAX, NULL);
 	createTrackbar("V_MAX", windowName, &V_MAX, V_MAX, NULL);
 
+}
 
+void disparityTrackbars() {
+	String windowName = "DisparityTrackbars";
+	int const numNames = 9;
 
+	/*char TrackbarNames[numNames];
+	sprintf(TrackbarNames, "Pre Filter Cap");
+	sprintf(TrackbarNames, "Pre Filter Type");
+	sprintf(TrackbarNames, "Pre Filter Size");
+	sprintf(TrackbarNames, "Min Disparity");
+	sprintf(TrackbarNames, "Texture Threshold");
+	sprintf(TrackbarNames, "Unniqueness Ratio");
+	sprintf(TrackbarNames, "Speckle Window Size");
+	sprintf(TrackbarNames, "Speckle Range");
+	sprintf(TrackbarNames, "Disp12 Max Diff");
+
+	createTrackbar("Pre Filter Cap", windowName, &preFilterCap, 63, NULL);
+	createTrackbar("Pre Filter Type", windowName, &preFilterType, 1, NULL);
+	createTrackbar("Pre Filter Size", windowName, &preFilterSize, 256, NULL);
+	createTrackbar("Min Disparity", windowName, &minDisparity, 256, NULL);
+	createTrackbar("Texture Threshold", windowName, &textureThreshold, 256, NULL);
+	createTrackbar("Unniqueness Ratio", windowName, &uniquenessRatio, 256, NULL);
+	createTrackbar("Speckle Window Size", windowName, &speckleWindowSize, 256, NULL);
+	createTrackbar("Speckle Range", windowName, &speckleRange, 256, NULL);
+	createTrackbar("Disp12 Max Diff", windowName, &disp12MaxDiff, 256, NULL);
+	*/
+
+	namedWindow(windowName, 0);
+	createTrackbar("PFCap", windowName, &preFilterCap, 63, NULL);
+	createTrackbar("PFType", windowName, &preFilterType, 1, NULL);
+	createTrackbar("PFSize", windowName, &preFilterSize, 256, NULL);
+	createTrackbar("Min Disp", windowName, &minDisparity, 256, NULL);
+	createTrackbar("Tex Thres", windowName, &textureThreshold, 1024, NULL);
+	createTrackbar("UnniqRatio", windowName, &uniquenessRatio, 64, NULL);
+	createTrackbar("SpeckWinSz", windowName, &speckleWindowSize, 256, NULL);
+	createTrackbar("SpeckRange", windowName, &speckleRange, 256, NULL);
+	createTrackbar("DispMDiff", windowName, &disp12MaxDiff, 256, NULL);
+	createTrackbar("nDisp", windowName, &ndisparities, 256, NULL);
+	createTrackbar("SADWin", windowName, &SADWindowSize, 256, NULL);
 }
 
 bool init_cams() {
@@ -174,11 +232,6 @@ void readMats(){
 	fsExtr["Q"] >> Q;
 
 	M1.empty() ? cout << "empty" : cout << "not empty"<<endl;
-
-	/*cout << M1<<endl;
-	cout << D2<<endl;
-	cout << R1 << endl;
-	*/
 }
 
 
@@ -254,27 +307,20 @@ int main(int argc, char** argv) {
 	
 	////////////////////////////////////////////////////////////
 
-	//showTrackbars();
+	//maskingTrackbars();
 	Rect roiL, roiR;
-	stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q);// , CALIB_ZERO_DISPARITY, -1, imageSize, &roiL, &roiR);
+	stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q , CALIB_ZERO_DISPARITY, -1, imageSize, &roiL, &roiR);
 
 	Mat rmap[2][2];
 	initUndistortRectifyMap(M1, D1, R1, P1, imageSize, CV_16SC2, rmap[0][0], rmap[0][1]);
 	initUndistortRectifyMap(M2, D2, R2, P2, imageSize, CV_16SC2, rmap[1][0], rmap[1][1]);
 
-	/*Mat canvas;
-	double sf;
-	int w, h;
-	sf = 300. / MAX(imageSize.width, imageSize.height);
-	w = cvRound(imageSize.width*sf);
-	h = cvRound(imageSize.height*sf);
-	canvas.create(h * 2, w, CV_8UC3);*/
-
 	Mat rimgL, rimgR;
+
 	remap(imgL, rimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
-	cvtColor(rimgL, cimgL, COLOR_GRAY2BGR);
+	//cvtColor(rimgL, cimgL, COLOR_GRAY2BGR);
 	remap(imgR, rimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
-	cvtColor(rimgR, cimgR, COLOR_GRAY2BGR);
+	//cvtColor(rimgR, cimgR, COLOR_GRAY2BGR);
 
 	imwrite("rectifiedL.png", rimgL);
 	imwrite("rectifiedR.png", rimgR);
@@ -285,7 +331,18 @@ int main(int argc, char** argv) {
 	int distBtwnLines = 20;
 	for (int l = 0; l < H.rows; l += distBtwnLines)
 		line(H, Point(0, l), Point(H.cols, l), Scalar(0, 0, 255));
+	rectangle(H, roiL, Scalar(0, 0, 255), 2, 8, 0);
+	rectangle(H, Rect(roiR.x+rimgL.cols, roiR.y,roiR.width, roiR.height) , Scalar(0, 0, 255), 2, 8, 0);
 	imshow("Combo", H);
+	imwrite("Combo.png", H);
+
+	Rect newRoiL(roiL.x, roiL.y, 1100, 850);
+
+	Mat M;
+	Mat crL = rimgL(newRoiL);
+	Mat crR = rimgR(newRoiL);
+	imwrite("CroppedL.png", crL);
+	imwrite("CroppedR.png", crR);
 
 	//THIS IS THE NEW THING FOR DRAWING EPILINES THAT DOESNT WORK YET!!!
 	/*vector<uchar> array;
@@ -298,30 +355,43 @@ int main(int argc, char** argv) {
 		}*/
 	
 
-	imshow("rimgL", rimgL);
-	imshow("rimgR", rimgR);
+	//imshow("rimgL", rimgL);
+	//imshow("rimgR", rimgR);
 
 	/////////////////////////////////////////////
-	findDisparity(rimgL, rimgR, roiL, roiR);//Outputs disparity map to disp16S
-	imshow("Disp8U", disp8U);
+
+	disparityTrackbars();
+
+	/*Mat crL_colour, crR_colour;
+	applyColorMap(crL, crL_colour, COLORMAP_RAINBOW);
+	applyColorMap(crR, crR_colour, COLORMAP_RAINBOW);
+	imshow ("COLOUR", crL_colour);*/
+
+	while (true) {
+		findDisparity(crL, crR, newRoiL, newRoiL);//Outputs disparity map to disp16S
+		imshow("Disp8U", disp8U);
+		waitKey(30);
+	}
+
+	imwrite("Disp8U.png", disp8U);
 	imshow("Disp16S", disp16S);
 
-	waitKey(0);
+	//waitKey(0);
 
-	Mat threshold = disp8U;
-	Mat maskedL = disp8U;
-	Mat maskedR = disp8U;
+	//Mat threshold = disp8U;
+	//Mat maskedL = disp8U;
+	//Mat maskedR = disp8U;
 
 	//for debugging purposes only//
-	Mat colour_disp8U;	
-	applyColorMap(disp8U, colour_disp8U, COLORMAP_RAINBOW);
+	//Mat colour_disp8U;	
+	//applyColorMap(disp8U, colour_disp8U, COLORMAP_RAINBOW);
 	///////////////////////////////
-	Mat crimgL;
-	Mat crimgR;
-	cvtColor(rimgL, crimgL, CV_GRAY2BGR);
-	imshow("crimgL", crimgL);
+	//Mat crimgL;
+	//Mat crimgR;
+	//cvtColor(rimgL, crimgL, CV_GRAY2BGR);
+	//imshow("crimgL", crimgL);
 
-	do {
+	/*do {
 
 		imgL.copyTo(maskedL, threshold);
 		imgR.copyTo(maskedR, threshold);
@@ -330,7 +400,7 @@ int main(int argc, char** argv) {
 		String fn = "MaskedImgLSWAPPED.png";
 		imwrite(fn, maskedL);
 		waitKey(30);
-	} while (false);
+	} while (false);*/
 	
 	waitKey(0);
 	return 0;
