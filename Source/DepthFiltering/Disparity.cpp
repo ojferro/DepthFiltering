@@ -64,23 +64,44 @@ int S_MAX = 256;
 int V_MIN = 43;
 int V_MAX = 111;
 //////////////////////Disparity Trackbar Variables/////////////////////////////////////////
-int ndisparities = 128;
-//int ndisparitiesChange = ndisparities;
-int SADWindowSize = 51;
+int ndisparities = 16;
+int SADWindowSize = 9;
+int SADWindowSizeChange = SADWindowSize;
 int minDisparity = 0;
 int preFilterCap = 16;
 int preFilterType = 0;
 int preFilterSize = 40;
 int textureThreshold = 0;
-int uniquenessRatio = 0;
+int uniquenessRatio = 1;
 int speckleWindowSize = 0;
-int speckleRange = 0;
-int disp12MaxDiff = 0;
+int speckleRange = 49;
+int disp12MaxDiff = 256;
 
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
+
+int validateSAD(int sad) {
+	/*return (SADWindowSize < 5) ? 5
+		: (SADWindowSize % 2 == 1) ? SADWindowSize : SADWindowSize + 1;
+	*/
+	/*if (sad < 5)
+		SADWindowSize = 5;
+	else if (sad % 2 == 0 && SADWindowSize<255)
+		SADWindowSize++;*/
+
+	if (sad < 5)
+		return 5;
+	else if (sad % 2 == 0 && sad<255)
+		return (sad +1);
+	return sad;
+}
+
+int validateNDisp() {
+	return (ndisparities % 16 == 0) ? ndisparities : (round(ndisparities / 16.0) * 16); 
+
+}
 
 void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
 	//int ndisparities = 128; //16
@@ -108,7 +129,7 @@ void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
 	//sbm->setROI2(roiR);
 
 	//sbm->setPreFilterSize(16);	//issues
-	sbm->setPreFilterCap (preFilterCap);	//must be >16
+	sbm->setPreFilterCap (preFilterCap==0 ? preFilterCap+1 : preFilterCap);	//must be > 0
 	sbm->setPreFilterType(preFilterType);
 	sbm->setMinDisparity(minDisparity);
 	sbm->setTextureThreshold(textureThreshold);
@@ -116,9 +137,13 @@ void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
 	sbm->setSpeckleWindowSize (speckleWindowSize);
 	sbm->setSpeckleRange (speckleRange);
 	sbm->setDisp12MaxDiff(disp12MaxDiff);
-	sbm->setNumDisparities((ndisparities/16)*16);
-	sbm->setSmallerBlockSize((SADWindowSize % 2==1) ? SADWindowSize : (SADWindowSize + 1) );
-	cout << ndisparities<<endl;
+	sbm->setNumDisparities(validateNDisp());
+	/*cout << SADWindowSize << endl;
+	cout << "VALIDATED: " << SADWindowSize << endl;
+	cout << SADWindowSize << endl;*/
+	sbm->setSmallerBlockSize(validateSAD(SADWindowSizeChange));
+
+
 	
 
 	sbm->compute(imgL, imgR, disp16S);
@@ -194,7 +219,7 @@ void disparityTrackbars() {
 	createTrackbar("SpeckRange", windowName, &speckleRange, 256, NULL);
 	createTrackbar("DispMDiff", windowName, &disp12MaxDiff, 256, NULL);
 	createTrackbar("nDisp", windowName, &ndisparities, 256, NULL);
-	createTrackbar("SADWin", windowName, &SADWindowSize, 256, NULL);
+	createTrackbar("SADWin", windowName, &SADWindowSize, 255, NULL);
 }
 
 bool init_cams() {
@@ -367,10 +392,18 @@ int main(int argc, char** argv) {
 	applyColorMap(crR, crR_colour, COLORMAP_RAINBOW);
 	imshow ("COLOUR", crL_colour);*/
 
+	Mat crL_contrast, crR_contrast;
+	crL.convertTo(crL_contrast, -1, 2, 0);
+	crR.convertTo(crR_contrast, -1, 2, 0);
+	imshow ("Contrast", crL_contrast);
+
 	while (true) {
-		findDisparity(crL, crR, newRoiL, newRoiL);//Outputs disparity map to disp16S
+		findDisparity(crL_contrast, crR_contrast, newRoiL, newRoiL);//Outputs disparity map to disp16S
 		imshow("Disp8U", disp8U);
 		waitKey(30);
+		disp8U.setTo(Scalar(0, 0, 0));
+		//imshow("Disp8U", disp8U);
+		//waitKey(30);
 	}
 
 	imwrite("Disp8U.png", disp8U);
