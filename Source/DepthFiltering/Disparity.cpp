@@ -64,18 +64,18 @@ int S_MAX = 256;
 int V_MIN = 43;
 int V_MAX = 111;
 //////////////////////Disparity Trackbar Variables/////////////////////////////////////////
-int ndisparities = 16;
+int ndisparities = 128;
 int SADWindowSize = 9;
 int SADWindowSizeChange = SADWindowSize;
-int minDisparity = 0;
-int preFilterCap = 16;
-int preFilterType = 0;
+int minDisparity = 68;	//the negative is accounteed for later on (i.e. for minDisp of -60, initialize to 60)
+int preFilterCap = 30;
+int preFilterType = 1;
 int preFilterSize = 40;
-int textureThreshold = 0;
+int textureThreshold = 168;
 int uniquenessRatio = 1;
-int speckleWindowSize = 0;
-int speckleRange = 49;
-int disp12MaxDiff = 256;
+int speckleWindowSize = 12;
+int speckleRange = 256;
+int disp12MaxDiff = 0;
 
 
 
@@ -128,10 +128,11 @@ void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
 	//sbm->setROI1(roiL);
 	//sbm->setROI2(roiR);
 
-	//sbm->setPreFilterSize(16);	//issues
-	sbm->setPreFilterCap (preFilterCap==0 ? preFilterCap+1 : preFilterCap);	//must be > 0
+	sbm->setPreFilterCap(preFilterCap == 0 ? preFilterCap + 1 : preFilterCap);	//must be > 0
 	sbm->setPreFilterType(preFilterType);
-	sbm->setMinDisparity(minDisparity);
+	//if (preFilterType==0)
+	//	sbm->setPreFilterSize(preFilterSize);	//issues
+	sbm->setMinDisparity(-minDisparity);
 	sbm->setTextureThreshold(textureThreshold);
 	sbm->setUniquenessRatio (uniquenessRatio);
 	sbm->setSpeckleWindowSize (speckleWindowSize);
@@ -261,7 +262,7 @@ void readMats(){
 
 
 int main(int argc, char** argv) {
-
+	cout << StereoBM::PREFILTER_NORMALIZED_RESPONSE << "  " << StereoBM::PREFILTER_XSOBEL << endl << endl;
 	if (!calibrated)	//TODO: Do something if it does not find the extrinsics and intrinsic .yml files 
 		//Call calibrator
 
@@ -347,10 +348,11 @@ int main(int argc, char** argv) {
 	remap(imgR, rimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
 	//cvtColor(rimgR, cimgR, COLOR_GRAY2BGR);
 
-	imwrite("rectifiedL.png", rimgL);
-	imwrite("rectifiedR.png", rimgR);
+	//imwrite("rectifiedL.png", rimgL);
+	//imwrite("rectifiedR.png", rimgR);
 
-	Mat H;
+	////////////Displaying Rectified Images side by side (debugging)/////////
+	/*Mat H;
 	hconcat(rimgL, rimgR, H);
 
 	int distBtwnLines = 20;
@@ -360,10 +362,10 @@ int main(int argc, char** argv) {
 	rectangle(H, Rect(roiR.x+rimgL.cols, roiR.y,roiR.width, roiR.height) , Scalar(0, 0, 255), 2, 8, 0);
 	imshow("Combo", H);
 	imwrite("Combo.png", H);
+	*//////////////////////////////////////////////////////////////////////////
 
-	Rect newRoiL(roiL.x, roiL.y, 1100, 850);
+	Rect newRoiL(roiL.x, roiL.y, 950, 550);	// 1100, 850
 
-	Mat M;
 	Mat crL = rimgL(newRoiL);
 	Mat crR = rimgR(newRoiL);
 	imwrite("CroppedL.png", crL);
@@ -385,7 +387,7 @@ int main(int argc, char** argv) {
 
 	/////////////////////////////////////////////
 
-	disparityTrackbars();
+	//disparityTrackbars();
 
 	/*Mat crL_colour, crR_colour;
 	applyColorMap(crL, crL_colour, COLORMAP_RAINBOW);
@@ -395,9 +397,10 @@ int main(int argc, char** argv) {
 	Mat crL_contrast, crR_contrast;
 	crL.convertTo(crL_contrast, -1, 2, 0);
 	crR.convertTo(crR_contrast, -1, 2, 0);
-	imshow ("Contrast", crL_contrast);
+	//imshow ("Contrast", crL_contrast);
 
 	while (true) {
+		//TODO: Grab frame
 		findDisparity(crL_contrast, crR_contrast, newRoiL, newRoiL);//Outputs disparity map to disp16S
 		imshow("Disp8U", disp8U);
 		waitKey(30);
