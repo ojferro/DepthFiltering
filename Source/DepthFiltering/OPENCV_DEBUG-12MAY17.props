@@ -8,8 +8,8 @@
       <AdditionalIncludeDirectories>D:\Program Files\opencv\build\include;D:\opencv_root\opencv_contrib\modules\stereo\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>D:\Program Files\opencv\build\x64\vc14\lib;D:\opencv_root\build_opencv\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>opencv_world320d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>D:\Program Files\opencv\build\x64\vc14\lib;D:\opencv_root\build_opencv\lib;D:\Interaptix\Vendor\freeglut-3.0.0\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>opencv_world320d.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup />

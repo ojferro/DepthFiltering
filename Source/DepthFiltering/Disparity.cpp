@@ -1,8 +1,17 @@
-﻿//Oswaldo Ferro - Last edit: 23 May 2017
+﻿//Oswaldo Ferro - Last edit: 02 June 2017
 
 /*
-Non-webcam stuff is working fine
-Have not tried webcam stuff
+Starting to implement runtime disparity
+
+
+TODO MONDAY JUNE 5:
+
+convert uchar* pic1 being read in from camera into cv::Mat,
+now that I know FRAME_WIDTH and FRAME_HEIGHT
+
+use the Mat and cvtColor to convert from Bayer to RGB
+
+add a loop so that it finds the disparity multiple times, with live cameras
 */
 
 
@@ -18,15 +27,27 @@ Have not tried webcam stuff
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/aruco.hpp>
 
+//#include "ICamera.h"
+#include "point_grey_cam.h"
+#include "point_grey_sim.h"
+
 
 
 using namespace cv;
 using namespace std;
 
+#define POINT_GREY_FOV 42.5
+#define POINT_GREY_FPS 10.0
+#define POINT_GREY_EXPOSURE 16
+#define POINT_GREY_GAIN 10.0
+#define POINT_GREY_WHITE_BALANCE 700, 880
+
 /////////////////////GLOBAL VARIABLES//////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
 Mat imgL;
 Mat imgR;
+uchar* rawL;
+uchar* rawR;
 Mat cimgL;
 Mat cimgR;
 Mat disp16S;
@@ -43,15 +64,26 @@ Mat P1;
 Mat P2;
 Mat Q;
 
+Mat imgBayerL;
+Mat imgBayerR;
+
+Mat rmap[2][2];
+Mat rimgL, rimgR;
+Rect roiL, roiR;
+
+Mat crL_contrast, crR_contrast;
+Mat crL;
+Mat crR;
+
 VideoCapture capL;
 VideoCapture capR;
 
-const int FRAME_WIDTH = 640;
-const int FRAME_HEIGHT = 480;
+//const int FRAME_WIDTH = 640;
+//const int FRAME_HEIGHT = 480;
 
 Size imageSize;
 
-const bool webcam = false;
+const bool webcam = true;
 const bool calibrated = true;
 
 const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
@@ -77,10 +109,55 @@ int speckleWindowSize = 12;
 int speckleRange = 256;
 int disp12MaxDiff = 0;
 
+////////////////////////////////Point Grey Cameras/////////////////////////////////////////
+point_grey_camera_manager * GigeManager = 0;
+ICamera * PointGreyCam = 0;
+ICamera * PointGreyCam2 = 0;
 
+int FRAME_WIDTH;
+int FRAME_HEIGHT;
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
+
+int init_PointGrey()
+{
+	GigeManager = new point_grey_camera_manager(true);
+	int num_cameras = GigeManager->get_num_cameras();
+
+	if (num_cameras > 0)
+	{
+		printf("%d Cameras found. Opening the first one.\n", num_cameras);
+		PointGreyCam = GigeManager->get_cam_from_index(0);
+
+		PointGreyCam->set_auto_exposure(false);
+		PointGreyCam->set_frame_rate(POINT_GREY_FPS);
+		PointGreyCam->set_exposure_ms(POINT_GREY_EXPOSURE);
+		PointGreyCam->set_gain_db(POINT_GREY_GAIN);
+		PointGreyCam->set_white_balance(POINT_GREY_WHITE_BALANCE);
+		FRAME_WIDTH = PointGreyCam->get_width();
+		FRAME_HEIGHT = PointGreyCam->get_height();
+	}
+	else
+	{
+		printf("Error. %d Cameras found. Exiting.\n", num_cameras);
+		waitKey(2000);
+		exit(1);
+	}
+
+	if (num_cameras > 1)
+	{
+		printf("%d Cameras found. Opening the second one.\n", num_cameras);
+		waitKey(10);
+		PointGreyCam2 = GigeManager->get_cam_from_index(1);
+		PointGreyCam2->set_auto_exposure(false);
+		PointGreyCam2->set_frame_rate(POINT_GREY_FPS);
+		PointGreyCam2->set_exposure_ms(POINT_GREY_EXPOSURE);
+		PointGreyCam2->set_gain_db(POINT_GREY_GAIN);
+		PointGreyCam2->set_white_balance(POINT_GREY_WHITE_BALANCE);
+	}
+	return 0;
+}
 
 int validateSAD(int sad) {
 	/*return (SADWindowSize < 5) ? 5
@@ -262,7 +339,6 @@ void readMats(){
 
 
 int main(int argc, char** argv) {
-	cout << StereoBM::PREFILTER_NORMALIZED_RESPONSE << "  " << StereoBM::PREFILTER_XSOBEL << endl << endl;
 	if (!calibrated)	//TODO: Do something if it does not find the extrinsics and intrinsic .yml files 
 		//Call calibrator
 
@@ -274,8 +350,6 @@ int main(int argc, char** argv) {
 	CommandLineParser parser(argc, argv, "{w|9|}{h|6|}{s|1.0|}{nr||}{help||}{@input|../data/stereo_calib.xml|}{iL|Images/meL-1meter.png|}{iR|Images/meR-1meter.png|}");
 	String imgLfn = parser.get<string>("iL");
 	String imgRfn = parser.get<string>("iR");
-
-	//cout << imgLfn << "  " << imgRfn;
 
 	//Read in intrinsic and extrinsic matrices from calibration	
 	readMats();	//TODO: Error checking if matrices cannot be read
@@ -299,19 +373,32 @@ int main(int argc, char** argv) {
 		}
 		imageSize = imgL.size();
 		cout << "Calculating Disparity Map...\n";
-		cout << imgL.empty() << "   " << imgL.size();
+		//cout << imgL.empty() << "   " << imgL.size();
 	}
 	else {
-		if (!init_cams())
+		if (init_PointGrey())
 			return 1;
 		
 		disp16S = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_16S);
 		disp8U = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1);
-		
-		capL.read(imgL);
-		capR.read(imgR);
 
-		imageSize = Size(FRAME_WIDTH, FRAME_HEIGHT);
+			rawL = PointGreyCam->get_raw_data();
+			Mat imgTL(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
+			cvtColor(imgTL, imgL, COLOR_BayerRG2GRAY);
+			imshow("imgL", imgL);
+			//waitKey(50);
+
+			rawR = PointGreyCam2->get_raw_data();
+			//imgR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
+			Mat imgTR(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
+			cvtColor(imgTR, imgR, COLOR_BayerRG2GRAY);
+			imshow("imgR", imgR);
+			waitKey(30);
+		
+		/*capL.read(imgL);
+		capR.read(imgR);*/
+
+		imageSize = imgL.size();	//TODO: Eroor trap if imgL and imgR are not the same size
 	}
 	
 	//////////////////////////////OUTPUT////////////////////////
@@ -334,77 +421,74 @@ int main(int argc, char** argv) {
 	////////////////////////////////////////////////////////////
 
 	//maskingTrackbars();
-	Rect roiL, roiR;
+
 	stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q , CALIB_ZERO_DISPARITY, -1, imageSize, &roiL, &roiR);
 
-	Mat rmap[2][2];
+
 	initUndistortRectifyMap(M1, D1, R1, P1, imageSize, CV_16SC2, rmap[0][0], rmap[0][1]);
 	initUndistortRectifyMap(M2, D2, R2, P2, imageSize, CV_16SC2, rmap[1][0], rmap[1][1]);
 
-	Mat rimgL, rimgR;
 
-	remap(imgL, rimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
-	//cvtColor(rimgL, cimgL, COLOR_GRAY2BGR);
-	remap(imgR, rimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
-	//cvtColor(rimgR, cimgR, COLOR_GRAY2BGR);
-
-	//imwrite("rectifiedL.png", rimgL);
-	//imwrite("rectifiedR.png", rimgR);
-
-	////////////Displaying Rectified Images side by side (debugging)/////////
-	/*Mat H;
-	hconcat(rimgL, rimgR, H);
-
-	int distBtwnLines = 20;
-	for (int l = 0; l < H.rows; l += distBtwnLines)
-		line(H, Point(0, l), Point(H.cols, l), Scalar(0, 0, 255));
-	rectangle(H, roiL, Scalar(0, 0, 255), 2, 8, 0);
-	rectangle(H, Rect(roiR.x+rimgL.cols, roiR.y,roiR.width, roiR.height) , Scalar(0, 0, 255), 2, 8, 0);
-	imshow("Combo", H);
-	imwrite("Combo.png", H);
-	*//////////////////////////////////////////////////////////////////////////
-
-	Rect newRoiL(roiL.x, roiL.y, 950, 550);	// 1100, 850
-
-	Mat crL = rimgL(newRoiL);
-	Mat crR = rimgR(newRoiL);
-	imwrite("CroppedL.png", crL);
-	imwrite("CroppedR.png", crR);
-
-	//THIS IS THE NEW THING FOR DRAWING EPILINES THAT DOESNT WORK YET!!!
-	/*vector<uchar> array;
-	if (mat.isContinuous()) {
-		array.assign(mat.datastart, mat.dataend);
-	}
-	else {
-		for (int i = 0; i < mat.rows; ++i) {
-			array.insert(array.end(), mat.ptr<uchar>(i), mat.ptr<uchar>(i) + mat.cols);
-		}*/
-	
-
-	//imshow("rimgL", rimgL);
-	//imshow("rimgR", rimgR);
-
-	/////////////////////////////////////////////
-
-	//disparityTrackbars();
-
-	/*Mat crL_colour, crR_colour;
-	applyColorMap(crL, crL_colour, COLORMAP_RAINBOW);
-	applyColorMap(crR, crR_colour, COLORMAP_RAINBOW);
-	imshow ("COLOUR", crL_colour);*/
-
-	Mat crL_contrast, crR_contrast;
-	crL.convertTo(crL_contrast, -1, 2, 0);
-	crR.convertTo(crR_contrast, -1, 2, 0);
-	//imshow ("Contrast", crL_contrast);
-
+	//Start of the loop
 	while (true) {
-		//TODO: Grab frame
+		cout << "ITERATION!";
+		rawL = PointGreyCam->get_raw_data();
+		imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
+		cvtColor(imgBayerL, imgL, COLOR_BayerRG2GRAY);
+		imshow("imgL", imgL);
+		//waitKey(50);
+
+		rawR = PointGreyCam2->get_raw_data();
+		//imgR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
+		imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
+		cvtColor(imgBayerR, imgR, COLOR_BayerRG2GRAY);
+		imshow("imgR", imgR);
+		waitKey(30);
+
+		remap(imgL, rimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
+		//cvtColor(rimgL, cimgL, COLOR_GRAY2BGR);
+		remap(imgR, rimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
+		//cvtColor(rimgR, cimgR, COLOR_GRAY2BGR);
+
+		//imwrite("rectifiedL.png", rimgL);
+		//imwrite("rectifiedR.png", rimgR);
+
+		////////////Displaying Rectified Images side by side (debugging)/////////
+		/*Mat H;
+		hconcat(rimgL, rimgR, H);
+
+		int distBtwnLines = 20;
+		for (int l = 0; l < H.rows; l += distBtwnLines)
+			line(H, Point(0, l), Point(H.cols, l), Scalar(0, 0, 255));
+		rectangle(H, roiL, Scalar(0, 0, 255), 2, 8, 0);
+		rectangle(H, Rect(roiR.x+rimgL.cols, roiR.y,roiR.width, roiR.height) , Scalar(0, 0, 255), 2, 8, 0);
+		imshow("Combo", H);
+		imwrite("Combo.png", H);
+		*//////////////////////////////////////////////////////////////////////////
+
+		Rect newRoiL(roiL.x, roiL.y, 950, 550);	// 1100, 850
+
+		crL = rimgL(newRoiL);
+		crR = rimgR(newRoiL);
+		imwrite("CroppedL.png", crL);
+		imwrite("CroppedR.png", crR);
+
+		//disparityTrackbars();
+
+		/*Mat crL_colour, crR_colour;
+		applyColorMap(crL, crL_colour, COLORMAP_RAINBOW);
+		applyColorMap(crR, crR_colour, COLORMAP_RAINBOW);
+		imshow ("COLOUR", crL_colour);*/
+
+
+		crL.convertTo(crL_contrast, -1, 2, 0);
+		crR.convertTo(crR_contrast, -1, 2, 0);
+		//imshow ("Contrast", crL_contrast);
+
 		findDisparity(crL_contrast, crR_contrast, newRoiL, newRoiL);//Outputs disparity map to disp16S
 		imshow("Disp8U", disp8U);
 		waitKey(30);
-		disp8U.setTo(Scalar(0, 0, 0));
+		//disp8U.setTo(Scalar(0, 0, 0));
 		//imshow("Disp8U", disp8U);
 		//waitKey(30);
 	}
