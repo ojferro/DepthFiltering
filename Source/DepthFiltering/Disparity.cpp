@@ -4,14 +4,11 @@
 Starting to implement runtime disparity
 
 
-TODO MONDAY JUNE 5:
-
-convert uchar* pic1 being read in from camera into cv::Mat,
-now that I know FRAME_WIDTH and FRAME_HEIGHT
-
-use the Mat and cvtColor to convert from Bayer to RGB
-
-add a loop so that it finds the disparity multiple times, with live cameras
+TODO TUESDAY JUNE 6:
+	Implement masking of live colour-feed
+	Implement timer in C++ to determine FPS
+	Start Optimizing code (minimize needless function calls)
+	Research superpixels
 */
 
 
@@ -78,8 +75,6 @@ Mat crR;
 VideoCapture capL;
 VideoCapture capR;
 
-//const int FRAME_WIDTH = 640;
-//const int FRAME_HEIGHT = 480;
 
 Size imageSize;
 
@@ -88,7 +83,7 @@ const bool calibrated = true;
 
 const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
 const String EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
-//////////////////////Masking Trackbar Stuff///////////////////////////////////////////////
+//////////////////////Masking Trackbar Variables///////////////////////////////////////////
 int H_MIN = 3;
 int H_MAX = 256;
 int S_MIN = 0;
@@ -160,14 +155,6 @@ int init_PointGrey()
 }
 
 int validateSAD(int sad) {
-	/*return (SADWindowSize < 5) ? 5
-		: (SADWindowSize % 2 == 1) ? SADWindowSize : SADWindowSize + 1;
-	*/
-	/*if (sad < 5)
-		SADWindowSize = 5;
-	else if (sad % 2 == 0 && SADWindowSize<255)
-		SADWindowSize++;*/
-
 	if (sad < 5)
 		return 5;
 	else if (sad % 2 == 0 && sad<255)
@@ -216,13 +203,7 @@ void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
 	sbm->setSpeckleRange (speckleRange);
 	sbm->setDisp12MaxDiff(disp12MaxDiff);
 	sbm->setNumDisparities(validateNDisp());
-	/*cout << SADWindowSize << endl;
-	cout << "VALIDATED: " << SADWindowSize << endl;
-	cout << SADWindowSize << endl;*/
 	sbm->setSmallerBlockSize(validateSAD(SADWindowSizeChange));
-
-
-	
 
 	sbm->compute(imgL, imgR, disp16S);
 
@@ -264,28 +245,6 @@ void disparityTrackbars() {
 	String windowName = "DisparityTrackbars";
 	int const numNames = 9;
 
-	/*char TrackbarNames[numNames];
-	sprintf(TrackbarNames, "Pre Filter Cap");
-	sprintf(TrackbarNames, "Pre Filter Type");
-	sprintf(TrackbarNames, "Pre Filter Size");
-	sprintf(TrackbarNames, "Min Disparity");
-	sprintf(TrackbarNames, "Texture Threshold");
-	sprintf(TrackbarNames, "Unniqueness Ratio");
-	sprintf(TrackbarNames, "Speckle Window Size");
-	sprintf(TrackbarNames, "Speckle Range");
-	sprintf(TrackbarNames, "Disp12 Max Diff");
-
-	createTrackbar("Pre Filter Cap", windowName, &preFilterCap, 63, NULL);
-	createTrackbar("Pre Filter Type", windowName, &preFilterType, 1, NULL);
-	createTrackbar("Pre Filter Size", windowName, &preFilterSize, 256, NULL);
-	createTrackbar("Min Disparity", windowName, &minDisparity, 256, NULL);
-	createTrackbar("Texture Threshold", windowName, &textureThreshold, 256, NULL);
-	createTrackbar("Unniqueness Ratio", windowName, &uniquenessRatio, 256, NULL);
-	createTrackbar("Speckle Window Size", windowName, &speckleWindowSize, 256, NULL);
-	createTrackbar("Speckle Range", windowName, &speckleRange, 256, NULL);
-	createTrackbar("Disp12 Max Diff", windowName, &disp12MaxDiff, 256, NULL);
-	*/
-
 	namedWindow(windowName, 0);
 	createTrackbar("PFCap", windowName, &preFilterCap, 63, NULL);
 	createTrackbar("PFType", windowName, &preFilterType, 1, NULL);
@@ -316,12 +275,11 @@ bool init_cams() {
 }
 
 
-void readMats(){
+bool readMats(){
 	FileStorage fsIntr(INTRINSICS_FILE_PATH, FileStorage::READ);
 	FileStorage fsExtr(EXTRINSICS_FILE_PATH, FileStorage::READ);
 
-	M1.empty() ? cout<<"empty" : cout<<"not empty";
-
+	//TODO: Error checking if matrices cannot be read
 	fsIntr["M1"] >> M1;
 	fsIntr["D1"] >> D1;
 	fsIntr["M2"] >> M2;
@@ -334,7 +292,10 @@ void readMats(){
 	fsExtr["P2"] >> P2;
 	fsExtr["Q"] >> Q;
 
-	M1.empty() ? cout << "empty" : cout << "not empty"<<endl;
+	if (M1.empty() || D1.empty() || M2.empty() || D2.empty() || R.empty() || T.empty() || R1.empty() || R2.empty() || P1.empty() || P2.empty() || Q.empty())
+		return false;
+
+	return true;
 }
 
 
@@ -352,17 +313,14 @@ int main(int argc, char** argv) {
 	String imgRfn = parser.get<string>("iR");
 
 	//Read in intrinsic and extrinsic matrices from calibration	
-	readMats();	//TODO: Error checking if matrices cannot be read
+	if (!readMats())
+		return false;
 
 	if (!webcam) {
 		imgL = imread(imgLfn, IMREAD_GRAYSCALE);
 		imgR = imread(imgRfn, IMREAD_GRAYSCALE);
 		//cvtColor(cimgL, imgL, COLOR_BGR2GRAY);
 		//cvtColor(cimgR, imgR, COLOR_BGR2GRAY);
-		//namedWindow("c", WINDOW_AUTOSIZE);
-		//imshow("c", cimgL);
-		//imshow("g", imgL);
-		//waitKey(30);
 
 		disp16S = Mat(imgL.rows, imgL.cols, CV_16S);
 		disp8U = Mat(imgL.rows, imgL.cols, CV_8UC1);
@@ -373,54 +331,31 @@ int main(int argc, char** argv) {
 		}
 		imageSize = imgL.size();
 		cout << "Calculating Disparity Map...\n";
-		//cout << imgL.empty() << "   " << imgL.size();
 	}
 	else {
-		if (init_PointGrey())
+		if (init_PointGrey()) {
+			cout << "Unable to star camera(s)";
+			waitKey(0);
 			return 1;
+		}
 		
 		disp16S = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_16S);
 		disp8U = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1);
+
+		//Initial read/demosaic
 		rawL = PointGreyCam->get_raw_data();
-		Mat imgTL(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
-		cvtColor(imgTL, imgL, COLOR_BayerRG2GRAY);
-		//imshow("imgL", imgL);
-		//waitKey(50);
+		imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
+		cvtColor(imgBayerL, imgL, COLOR_BayerRG2GRAY);
 
 		rawR = PointGreyCam2->get_raw_data();
-		//imgR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
-		Mat imgTR(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
-		cvtColor(imgTR, imgR, COLOR_BayerRG2GRAY);
-		//imshow("imgR", imgR);
-		//waitKey(30);
-		
-		/*capL.read(imgL);
-		capR.read(imgR);*/
+		imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
+		cvtColor(imgBayerR, imgR, COLOR_BayerRG2GRAY);
 
 		imageSize = imgL.size();	//TODO: Error trap if imgL and imgR are not the same size
+		cout << "Calculating Disparity Map...\n";
 	}
 	
-	//////////////////////////////OUTPUT////////////////////////
-	
-	//namedWindow("Left Img.", WINDOW_AUTOSIZE);
-	//imshow("Left Img.", imgL);
-
-	//namedWindow("Right Img.", WINDOW_AUTOSIZE);
-	//imshow("Right Img.", imgR);
-
-	//waitKey(0);
-	//return 1;
-	
-	//namedWindow("Disparity Map", WINDOW_AUTOSIZE);
-	//imshow("Disparity Map", disp8U);
-	
-	
-	//imwrite(argv[3], disp8U);
-	
-	////////////////////////////////////////////////////////////
-
 	//maskingTrackbars();
-
 
 	stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, -1, imageSize, &roiL, &roiR);
 
@@ -429,31 +364,22 @@ int main(int argc, char** argv) {
 	initUndistortRectifyMap(M2, D2, R2, P2, imageSize, CV_16SC2, rmap[1][0], rmap[1][1]);
 
 
-	//Start of the loop
+	//Read, Demosaic, find Disp, Mask
 	while (true) {
-		//cout << "ITERATION!";
-
 		rawL = PointGreyCam->get_raw_data();
 		imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
 		cvtColor(imgBayerL, imgL, COLOR_BayerRG2GRAY);
-		//imshow("imgL", imgL);
-		//waitKey(50);
 
 		rawR = PointGreyCam2->get_raw_data();
 		//imgR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
 		imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
 		cvtColor(imgBayerR, imgR, COLOR_BayerRG2GRAY);
-		//imshow("imgR", imgR);
-		//waitKey(30);
+
 
 		remap(imgL, rimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
 		//cvtColor(rimgL, cimgL, COLOR_GRAY2BGR);
 		remap(imgR, rimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
-		//imshow("rimgL", rimgL);
 		//cvtColor(rimgR, cimgR, COLOR_GRAY2BGR);
-
-		//imwrite("rectifiedL.png", rimgL);
-		//imwrite("rectifiedR.png", rimgR);
 
 		////////////Displaying Rectified Images side by side (debugging)/////////
 		/*Mat H;
@@ -465,34 +391,22 @@ int main(int argc, char** argv) {
 		rectangle(H, roiL, Scalar(0, 0, 255), 2, 8, 0);
 		rectangle(H, Rect(roiR.x+rimgL.cols, roiR.y,roiR.width, roiR.height) , Scalar(0, 0, 255), 2, 8, 0);
 		imshow("Combo", H);*/
-		//imwrite("Combo.png", H);
 		/////////////////////////////////////////////////////////////////////////
 
+		//TODO: Find more universal way to determine intersection of both ROIs
 		Rect newRoiL(roiR.x, roiR.y, 1100, 850);	// 1100, 850..... 950, 550
 
 		crL = rimgL(newRoiL);
 		crR = rimgR(newRoiL);
-		//imshow("CroppedL.png", crL);
-		//imshow("CroppedR.png", crR);
 
 		disparityTrackbars();
 
-		/*Mat crL_colour, crR_colour;
-		applyColorMap(crL, crL_colour, COLORMAP_RAINBOW);
-		applyColorMap(crR, crR_colour, COLORMAP_RAINBOW);
-		imshow ("COLOUR", crL_colour);*/
-
-
 		crL.convertTo(crL_contrast, -1, 2, 0);
 		crR.convertTo(crR_contrast, -1, 2, 0);
-		//imshow ("Contrast", crL_contrast);
 
 		findDisparity(crL_contrast, crR_contrast, newRoiL, newRoiL);//Outputs disparity map to disp16S
 		imshow("Disp8U", disp8U);
 		waitKey(30);
-		//disp8U.setTo(Scalar(0, 0, 0));
-		//imshow("Disp8U", disp8U);
-		//waitKey(30);
 	}
 
 	imwrite("Disp8U.png", disp8U);
