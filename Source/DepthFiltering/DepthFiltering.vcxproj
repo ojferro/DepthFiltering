@@ -104,11 +104,13 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>D:\opencv_root\opencv_contrib\modules\aruco\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\opencv_root\opencv_contrib\modules\aruco\include;D:\Interaptix\Vendor\PointGrey\PointGrey;D:\Interaptix\Vendor\GL_Utils\GL_Utils;D:\Interaptix\Vendor\FlyCapture2-2.10.3\include;D:\Interaptix\Vendor\glew-2.0.0\include;D:\Interaptix\Vendor\freeglut-3.0.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>FlyCapture2.lib;freeglut.lib;glew32.lib;GL_Utils.lib;PointGrey.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\..\..\Vendor\PointGrey\x64\Debug\;$(SolutionDir)\..\..\Vendor\FlyCapture2-2.10.3\lib64\;$(SolutionDir)\..\..\Vendor\glew-2.0.0\lib\Release\x64\;$(SolutionDir)\..\..\Vendor\GL_Utils\x64\Release\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
