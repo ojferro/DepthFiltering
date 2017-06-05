@@ -381,24 +381,23 @@ int main(int argc, char** argv) {
 		
 		disp16S = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_16S);
 		disp8U = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1);
+		rawL = PointGreyCam->get_raw_data();
+		Mat imgTL(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
+		cvtColor(imgTL, imgL, COLOR_BayerRG2GRAY);
+		//imshow("imgL", imgL);
+		//waitKey(50);
 
-			rawL = PointGreyCam->get_raw_data();
-			Mat imgTL(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
-			cvtColor(imgTL, imgL, COLOR_BayerRG2GRAY);
-			imshow("imgL", imgL);
-			//waitKey(50);
-
-			rawR = PointGreyCam2->get_raw_data();
-			//imgR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
-			Mat imgTR(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
-			cvtColor(imgTR, imgR, COLOR_BayerRG2GRAY);
-			imshow("imgR", imgR);
-			waitKey(30);
+		rawR = PointGreyCam2->get_raw_data();
+		//imgR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
+		Mat imgTR(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
+		cvtColor(imgTR, imgR, COLOR_BayerRG2GRAY);
+		//imshow("imgR", imgR);
+		//waitKey(30);
 		
 		/*capL.read(imgL);
 		capR.read(imgR);*/
 
-		imageSize = imgL.size();	//TODO: Eroor trap if imgL and imgR are not the same size
+		imageSize = imgL.size();	//TODO: Error trap if imgL and imgR are not the same size
 	}
 	
 	//////////////////////////////OUTPUT////////////////////////
@@ -422,7 +421,8 @@ int main(int argc, char** argv) {
 
 	//maskingTrackbars();
 
-	stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q , CALIB_ZERO_DISPARITY, -1, imageSize, &roiL, &roiR);
+
+	stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, -1, imageSize, &roiL, &roiR);
 
 
 	initUndistortRectifyMap(M1, D1, R1, P1, imageSize, CV_16SC2, rmap[0][0], rmap[0][1]);
@@ -431,23 +431,25 @@ int main(int argc, char** argv) {
 
 	//Start of the loop
 	while (true) {
-		cout << "ITERATION!";
+		//cout << "ITERATION!";
+
 		rawL = PointGreyCam->get_raw_data();
 		imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
 		cvtColor(imgBayerL, imgL, COLOR_BayerRG2GRAY);
-		imshow("imgL", imgL);
+		//imshow("imgL", imgL);
 		//waitKey(50);
 
 		rawR = PointGreyCam2->get_raw_data();
 		//imgR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
 		imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
 		cvtColor(imgBayerR, imgR, COLOR_BayerRG2GRAY);
-		imshow("imgR", imgR);
-		waitKey(30);
+		//imshow("imgR", imgR);
+		//waitKey(30);
 
 		remap(imgL, rimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
 		//cvtColor(rimgL, cimgL, COLOR_GRAY2BGR);
 		remap(imgR, rimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
+		//imshow("rimgL", rimgL);
 		//cvtColor(rimgR, cimgR, COLOR_GRAY2BGR);
 
 		//imwrite("rectifiedL.png", rimgL);
@@ -462,18 +464,18 @@ int main(int argc, char** argv) {
 			line(H, Point(0, l), Point(H.cols, l), Scalar(0, 0, 255));
 		rectangle(H, roiL, Scalar(0, 0, 255), 2, 8, 0);
 		rectangle(H, Rect(roiR.x+rimgL.cols, roiR.y,roiR.width, roiR.height) , Scalar(0, 0, 255), 2, 8, 0);
-		imshow("Combo", H);
-		imwrite("Combo.png", H);
-		*//////////////////////////////////////////////////////////////////////////
+		imshow("Combo", H);*/
+		//imwrite("Combo.png", H);
+		/////////////////////////////////////////////////////////////////////////
 
-		Rect newRoiL(roiL.x, roiL.y, 950, 550);	// 1100, 850
+		Rect newRoiL(roiR.x, roiR.y, 1100, 850);	// 1100, 850..... 950, 550
 
 		crL = rimgL(newRoiL);
 		crR = rimgR(newRoiL);
-		imwrite("CroppedL.png", crL);
-		imwrite("CroppedR.png", crR);
+		//imshow("CroppedL.png", crL);
+		//imshow("CroppedR.png", crR);
 
-		//disparityTrackbars();
+		disparityTrackbars();
 
 		/*Mat crL_colour, crR_colour;
 		applyColorMap(crL, crL_colour, COLORMAP_RAINBOW);
