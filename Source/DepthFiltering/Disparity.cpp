@@ -67,13 +67,18 @@ Mat imgBayerR;
 Mat rmap[2][2];
 Mat rimgL, rimgR;
 Rect roiL, roiR;
+Size roiDimensions(1100, 850);
 
 Mat crL_contrast, crR_contrast;
 Mat crL;
 Mat crR;
 
-VideoCapture capL;
-VideoCapture capR;
+Mat maskedL;
+Mat maskedR;
+Mat thresh;
+
+//VideoCapture capL;
+//VideoCapture capR;
 
 
 Size imageSize;
@@ -259,20 +264,21 @@ void disparityTrackbars() {
 	createTrackbar("SADWin", windowName, &SADWindowSize, 255, NULL);
 }
 
-bool init_cams() {
-	capL.open(0);
-	capR.open(0);
-	if (!capL.isOpened() || !capR.isOpened()) {
-		cout << "Not open";
-		return false;
-	}
-	
-	capL.set(CV_CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
-	capL.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
-	
-	capR.set(CV_CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
-	capR.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
-}
+///////////////Initializing (regular) Webcams (not PointGrey)//////////////////
+//bool init_cams() {
+//	capL.open(0);
+//	capR.open(0);
+//	if (!capL.isOpened() || !capR.isOpened()) {
+//		cout << "Not open";
+//		return false;
+//	}
+//	
+//	capL.set(CV_CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
+//	capL.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
+//	
+//	capR.set(CV_CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
+//	capR.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
+//}
 
 
 bool readMats(){
@@ -362,7 +368,7 @@ int main(int argc, char** argv) {
 
 	initUndistortRectifyMap(M1, D1, R1, P1, imageSize, CV_16SC2, rmap[0][0], rmap[0][1]);
 	initUndistortRectifyMap(M2, D2, R2, P2, imageSize, CV_16SC2, rmap[1][0], rmap[1][1]);
-
+	disparityTrackbars();
 
 	//Read, Demosaic, find Disp, Mask
 	while (true) {
@@ -394,18 +400,27 @@ int main(int argc, char** argv) {
 		/////////////////////////////////////////////////////////////////////////
 
 		//TODO: Find more universal way to determine intersection of both ROIs
-		Rect newRoiL(roiR.x, roiR.y, 1100, 850);	// 1100, 850..... 950, 550
+		Rect newRoiL(roiR.x, roiR.y, roiDimensions.width, roiDimensions.height);	// 1100, 850..... 950, 550
 
 		crL = rimgL(newRoiL);
 		crR = rimgR(newRoiL);
-
-		disparityTrackbars();
 
 		crL.convertTo(crL_contrast, -1, 2, 0);
 		crR.convertTo(crR_contrast, -1, 2, 0);
 
 		findDisparity(crL_contrast, crR_contrast, newRoiL, newRoiL);//Outputs disparity map to disp16S
 		imshow("Disp8U", disp8U);
+		//waitKey(30);
+
+		thresh = disp8U;
+		maskedL = imgL;
+		maskedR = imgR;
+
+		crL.copyTo(maskedL, thresh);
+		//crR.copyTo(maskedR, thresh);
+		imshow("MaskedL", maskedL);
+		//waitKey(30);
+		//imshow("MaskedR", maskedR);
 		waitKey(30);
 	}
 
@@ -414,9 +429,7 @@ int main(int argc, char** argv) {
 
 	//waitKey(0);
 
-	//Mat threshold = disp8U;
-	//Mat maskedL = disp8U;
-	//Mat maskedR = disp8U;
+	
 
 	//for debugging purposes only//
 	//Mat colour_disp8U;	
@@ -427,16 +440,10 @@ int main(int argc, char** argv) {
 	//cvtColor(rimgL, crimgL, CV_GRAY2BGR);
 	//imshow("crimgL", crimgL);
 
-	/*do {
 
-		imgL.copyTo(maskedL, threshold);
-		imgR.copyTo(maskedR, threshold);
-		imshow ("MaskedL", maskedL);
-		imshow("MaskedR", maskedR);
-		String fn = "MaskedImgLSWAPPED.png";
-		imwrite(fn, maskedL);
-		waitKey(30);
-	} while (false);*/
+	//String fn = "MaskedImgLSWAPPED.png";
+	//imwrite(fn, maskedL);
+
 	
 	waitKey(0);
 	return 0;
