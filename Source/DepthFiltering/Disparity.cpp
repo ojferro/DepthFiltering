@@ -66,16 +66,19 @@ Mat imgBayerR;
 
 Mat rmap[2][2];
 Mat rimgL, rimgR;
-Rect roiL, roiR;
+Rect roiL, roiR, newRoi;
 Size roiDimensions(1100, 850);
 
-Mat crL_contrast, crR_contrast;
 Mat crL;
 Mat crR;
 
 Mat maskedL;
 Mat maskedR;
 Mat thresh;
+Mat threshTemp;
+
+int CLOSE_THRESH = 255;
+int FAR_THRESH = 61;	//61 works the best
 
 //VideoCapture capL;
 //VideoCapture capR;
@@ -85,6 +88,8 @@ Size imageSize;
 
 const bool webcam = true;
 const bool calibrated = true;
+const bool postProcess = true;
+const bool preProcess = true;
 
 const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
 const String EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
@@ -148,8 +153,8 @@ int init_PointGrey()
 	if (num_cameras > 1)
 	{
 		printf("%d Cameras found. Opening the second one.\n", num_cameras);
-		waitKey(10);
 		PointGreyCam2 = GigeManager->get_cam_from_index(1);
+
 		PointGreyCam2->set_auto_exposure(false);
 		PointGreyCam2->set_frame_rate(POINT_GREY_FPS);
 		PointGreyCam2->set_exposure_ms(POINT_GREY_EXPOSURE);
@@ -172,7 +177,7 @@ int validateNDisp() {
 
 }
 
-void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
+void findDisparity(Mat L, Mat R, Rect roiL, Rect roiR) {
 	//int ndisparities = 128; //16
 	//int SADWindowSize = 9; //9
 	//int minDisparity = 0;
@@ -210,12 +215,14 @@ void findDisparity(Mat imgL, Mat imgR, Rect roiL, Rect roiR) {
 	sbm->setNumDisparities(validateNDisp());
 	sbm->setSmallerBlockSize(validateSAD(SADWindowSizeChange));
 
-	sbm->compute(imgL, imgR, disp16S);
+	sbm->compute(L, R, disp16S);
 
 	/*double maxVal, minVal;
 	minMaxLoc(disp16S, &minVal, &maxVal);
 	printf("Min disp: %f Max value: %f \n", minVal, maxVal);
 	*/
+
+	//normalize(disp16S, disp8U, 0, 255, CV_MINMAX, CV_8U);
 
 	disp16S.convertTo(disp8U, CV_8UC1, 255/(ndisparities*16.0));
 }
@@ -226,15 +233,6 @@ void on_trackbar(int, void*) {
 
 void maskingTrackbars() {	//Standalone function to set parameters. TODO: Make a function that calculates the parameters based on a min and max DISTANCE from the camera.
 	String windowName = "MaskingTrackbars";
-	int const numNames = 6;
-
-	char TrackbarNames[numNames];
-	sprintf(TrackbarNames, "H_MIN");
-	sprintf(TrackbarNames, "H_MAX");
-	sprintf(TrackbarNames, "S_MIN");
-	sprintf(TrackbarNames, "S_MAX");
-	sprintf(TrackbarNames, "V_MIN");
-	sprintf(TrackbarNames, "V_MAX");
 
 	namedWindow(windowName, 0);
 	createTrackbar("H_MIN", windowName, &H_MIN, H_MAX, NULL);
@@ -262,6 +260,14 @@ void disparityTrackbars() {
 	createTrackbar("DispMDiff", windowName, &disp12MaxDiff, 256, NULL);
 	createTrackbar("nDisp", windowName, &ndisparities, 256, NULL);
 	createTrackbar("SADWin", windowName, &SADWindowSize, 255, NULL);
+}
+
+void threshTrackbars() {
+	String windowName = "ThreshTrackbars";
+
+	namedWindow(windowName, 0);
+	createTrackbar("CLOSE_THRESH", windowName, &CLOSE_THRESH, 255, NULL);
+	createTrackbar("FAR_THRESH", windowName, &FAR_THRESH, 255, NULL);
 }
 
 ///////////////Initializing (regular) Webcams (not PointGrey)//////////////////
@@ -302,6 +308,29 @@ bool readMats(){
 		return false;
 
 	return true;
+}
+
+void preProc() {
+
+	crL.convertTo(crL, -1, 2, 0);
+	crR.convertTo(crR, -1, 2, 0);
+	//imshow("CONTRAST", crL);
+}
+
+void postProc (){
+	Mat temp, kernel;
+	/*erode(thresh, temp, kernel);
+	dilate(temp, thresh, kernel);*/
+	
+	//medianBlur(thresh, thresh, 5);		///Works the best
+	//GaussianBlur(thresh, thresh, Size(5, 5), 75, 0, 4);
+	//morphologyEx(thresh, thresh, MORPH_GRADIENT, getStructuringElement(MORPH_RECT, Size(7, 7)));
+	//floodFill(thresh, Point(FRAME_WIDTH/2, FRAME_HEIGHT/2), Scalar(255));
+	//blur(thresh, thresh, Size (5, 5));
+	//Mat temp; 
+	//bilateralFilter(thresh, temp, 5, 75, 75);
+	//imshow("Temp", temp);
+	
 }
 
 
@@ -369,22 +398,30 @@ int main(int argc, char** argv) {
 	initUndistortRectifyMap(M1, D1, R1, P1, imageSize, CV_16SC2, rmap[0][0], rmap[0][1]);
 	initUndistortRectifyMap(M2, D2, R2, P2, imageSize, CV_16SC2, rmap[1][0], rmap[1][1]);
 	disparityTrackbars();
+	threshTrackbars();
+
+	newRoi = Rect(roiR.x, roiR.y, roiDimensions.width, roiDimensions.height);	// 1100, 850..... 950, 550
 
 	//Read, Demosaic, find Disp, Mask
 	while (true) {
 		rawL = PointGreyCam->get_raw_data();
-		imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
-		cvtColor(imgBayerL, imgL, COLOR_BayerRG2GRAY);
-
 		rawR = PointGreyCam2->get_raw_data();
+
+		imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
+		//cvtColor(imgBayerL, imgL, COLOR_BayerRG2GRAY);
+		cvtColor(imgBayerL, cimgL, COLOR_BayerBG2BGR);
+		
 		//imgR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
 		imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
-		cvtColor(imgBayerR, imgR, COLOR_BayerRG2GRAY);
+		//cvtColor(imgBayerR, imgR, COLOR_BayerRG2GRAY);
+		cvtColor(imgBayerR, cimgR, COLOR_BayerBG2BGR);
 
 
-		remap(imgL, rimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
+		//remap(imgL, rimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
+		remap(cimgL, cimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
 		//cvtColor(rimgL, cimgL, COLOR_GRAY2BGR);
-		remap(imgR, rimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
+		//remap(imgR, rimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
+		remap(cimgR, cimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
 		//cvtColor(rimgR, cimgR, COLOR_GRAY2BGR);
 
 		////////////Displaying Rectified Images side by side (debugging)/////////
@@ -400,26 +437,41 @@ int main(int argc, char** argv) {
 		/////////////////////////////////////////////////////////////////////////
 
 		//TODO: Find more universal way to determine intersection of both ROIs
-		Rect newRoiL(roiR.x, roiR.y, roiDimensions.width, roiDimensions.height);	// 1100, 850..... 950, 550
 
-		crL = rimgL(newRoiL);
-		crR = rimgR(newRoiL);
+		//crL = rimgL(newRoi);
+		//crR = rimgR(newRoi);
 
-		crL.convertTo(crL_contrast, -1, 2, 0);
-		crR.convertTo(crR_contrast, -1, 2, 0);
+		cimgL = cimgL(newRoi);
+		cimgR = cimgR(newRoi);
 
-		findDisparity(crL_contrast, crR_contrast, newRoiL, newRoiL);//Outputs disparity map to disp16S
-		imshow("Disp8U", disp8U);
-		//waitKey(30);
+		cvtColor(cimgL, crL, COLOR_BGR2GRAY);
+		cvtColor(cimgR, crR, COLOR_BGR2GRAY);
 
-		thresh = disp8U;
+		if (preProcess)
+			preProc();
+		
+		findDisparity(crL, crR, newRoi, newRoi);//Outputs disparity map to disp16S
+		//imshow("Disp8U", disp8U);
+
+		//thresh = disp8U;
+		//threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);
+		//threshold(threshTemp, thresh, FAR_THRESH, 255, 3);	//4 = Threshold to Zero Inverted
+		threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);
+
+		////////////Attempts at post processing threshold////////////////
+		if (postProcess)
+			postProc();
+
+		imshow("Thresh", thresh);
 		maskedL = imgL;
 		maskedR = imgR;
 
-		crL.copyTo(maskedL, thresh);
+		//crL.copyTo(maskedL, thresh);
+		cimgL.copyTo(maskedL, thresh);
 		//crR.copyTo(maskedR, thresh);
+		//imshow("CIMGL", cimgL);
+		cimgR.copyTo(maskedR, thresh);
 		imshow("MaskedL", maskedL);
-		//waitKey(30);
 		//imshow("MaskedR", maskedR);
 		waitKey(30);
 	}
