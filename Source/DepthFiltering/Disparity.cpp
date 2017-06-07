@@ -23,6 +23,9 @@ TODO TUESDAY JUNE 6:
 #include <iomanip>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/aruco.hpp>
+#include <opencv2/ximgproc.hpp>
+#include <opencv2/ximgproc/disparity_filter.hpp>
+
 
 //#include "ICamera.h"
 #include "point_grey_cam.h"
@@ -34,7 +37,7 @@ using namespace cv;
 using namespace std;
 
 #define POINT_GREY_FOV 42.5
-#define POINT_GREY_FPS 5.0	//USED TO BE 10.0
+#define POINT_GREY_FPS 10.0	//USED TO BE 10.0
 #define POINT_GREY_EXPOSURE 16
 #define POINT_GREY_GAIN 10.0
 #define POINT_GREY_WHITE_BALANCE 700, 880
@@ -77,6 +80,11 @@ Mat maskedR;
 Mat thresh;
 Mat threshTemp;
 
+//For ximgproc filtering//
+Mat left_disp, right_disp, filtered_disp, downsizedL, downsizedR;
+double lambda=8000.0, sigma=1.5;
+//////////////////////////
+
 int CLOSE_THRESH = 255;
 int FAR_THRESH = 61;	//61 works the best
 
@@ -101,7 +109,7 @@ int S_MAX = 256;
 int V_MIN = 43;
 int V_MAX = 111;
 //////////////////////Disparity Trackbar Variables/////////////////////////////////////////
-int ndisparities = 128;
+int ndisparities = 128;//128
 int SADWindowSize = 9;
 int SADWindowSizeChange = SADWindowSize;
 int minDisparity = 68;	//the negative is accounteed for later on (i.e. for minDisp of -60, initialize to 60)
@@ -113,7 +121,7 @@ int uniquenessRatio = 1;
 int speckleWindowSize = 12;
 int speckleRange = 256;
 int disp12MaxDiff = 0;
-
+bool setSBMVars = true; //to initialize the variables but avoid repetition afterwards
 ////////////////////////////////Point Grey Cameras/////////////////////////////////////////
 point_grey_camera_manager * GigeManager = 0;
 ICamera * PointGreyCam = 0;
@@ -121,8 +129,8 @@ ICamera * PointGreyCam2 = 0;
 
 int FRAME_WIDTH;
 int FRAME_HEIGHT;
-
 ///////////////////////////////////////////////////////////////////////////////////////////
+Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
 ///////////////////////////////////////////////////////////////////////////////////////////
 
 int init_PointGrey()
@@ -177,6 +185,21 @@ int validateNDisp() {
 
 }
 
+void init_sbm() {
+	sbm->setPreFilterCap(preFilterCap == 0 ? preFilterCap + 1 : preFilterCap);	//must be > 0
+	sbm->setPreFilterType(preFilterType);
+	//if (preFilterType==0)
+	//	sbm->setPreFilterSize(preFilterSize);	//issues
+	sbm->setMinDisparity(-minDisparity);
+	sbm->setTextureThreshold(textureThreshold);
+	sbm->setUniquenessRatio (uniquenessRatio);
+	sbm->setSpeckleWindowSize (speckleWindowSize);
+	sbm->setSpeckleRange (speckleRange);
+	sbm->setDisp12MaxDiff(disp12MaxDiff);
+	sbm->setNumDisparities(validateNDisp());
+	sbm->setSmallerBlockSize(validateSAD(SADWindowSizeChange));
+}
+
 void findDisparity(Mat L, Mat R, Rect roiL, Rect roiR) {
 	//int ndisparities = 128; //16
 	//int SADWindowSize = 9; //9
@@ -197,23 +220,64 @@ void findDisparity(Mat L, Mat R, Rect roiL, Rect roiR) {
 	//	false);  //bool fullDP = false
 	//////////////////////////////////////////////////////////////////
 
-	Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
+	/////////////////////////////FILTERING////////////////////////////
+	//ndisparities /= 2;
+	//if (ndisparities % 16 != 0)
+	//	ndisparities += 16 - (ndisparities % 16);
+	//resize(L, downsizedL, Size(), 0.5, 0.5);
+	//resize(R, downsizedR, Size(), 0.5, 0.5);
 
-	//sbm->setROI1(roiL);
-	//sbm->setROI2(roiR);
+	//Ptr<StereoBM> left_matcher = StereoBM::create(ndisparities, SADWindowSize);
+	//left_matcher->setPreFilterCap(preFilterCap == 0 ? preFilterCap + 1 : preFilterCap);	//must be > 0
+	//left_matcher->setPreFilterType(preFilterType);
+	//////if (preFilterType==0)
+	//////	sbm->setPreFilterSize(preFilterSize);	//issues
+	//left_matcher->setMinDisparity(-minDisparity);
+	//left_matcher->setTextureThreshold(textureThreshold);
+	//left_matcher->setUniquenessRatio (uniquenessRatio);
+	//left_matcher->setSpeckleWindowSize (speckleWindowSize);
+	//left_matcher->setSpeckleRange (speckleRange);
+	//left_matcher->setDisp12MaxDiff(disp12MaxDiff);
+	//left_matcher->setNumDisparities(validateNDisp());
+	//left_matcher->setSmallerBlockSize(validateSAD(SADWindowSizeChange));
 
-	sbm->setPreFilterCap(preFilterCap == 0 ? preFilterCap + 1 : preFilterCap);	//must be > 0
-	sbm->setPreFilterType(preFilterType);
-	//if (preFilterType==0)
-	//	sbm->setPreFilterSize(preFilterSize);	//issues
-	sbm->setMinDisparity(-minDisparity);
-	sbm->setTextureThreshold(textureThreshold);
-	sbm->setUniquenessRatio (uniquenessRatio);
-	sbm->setSpeckleWindowSize (speckleWindowSize);
-	sbm->setSpeckleRange (speckleRange);
-	sbm->setDisp12MaxDiff(disp12MaxDiff);
-	sbm->setNumDisparities(validateNDisp());
-	sbm->setSmallerBlockSize(validateSAD(SADWindowSizeChange));
+	//Ptr<ximgproc::DisparityWLSFilter> wls_filter = ximgproc::createDisparityWLSFilter(left_matcher);
+	//Ptr<StereoMatcher> right_matcher = ximgproc::createRightMatcher(left_matcher);
+
+	//left_matcher->compute(L, R, left_disp);
+	//right_matcher->compute(R, L, right_disp);
+	//Mat test;
+	//left_disp.convertTo(test, CV_8UC1, 255 / (ndisparities*16.0));
+	//imshow("leftDisp", test);
+	//imshow("rightDisp", right_disp);
+
+	//wls_filter->setLambda(lambda);
+	//wls_filter->setSigmaColor(sigma);
+
+	//wls_filter->filter(left_disp, L, filtered_disp, right_disp);
+	//imshow("DISPARITY FILTERED", filtered_disp);
+	//filtered_disp.convertTo(disp8U, CV_8UC1, 255/(ndisparities*16.0));
+	//////////////////////////////////////////////////////////////////
+
+	//Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
+
+	//sbm->setPreFilterCap(preFilterCap == 0 ? preFilterCap + 1 : preFilterCap);	//must be > 0
+	//sbm->setPreFilterType(preFilterType);
+	////if (preFilterType==0)
+	////	sbm->setPreFilterSize(preFilterSize);	//issues
+	//sbm->setMinDisparity(-minDisparity);
+	//sbm->setTextureThreshold(textureThreshold);
+	//sbm->setUniquenessRatio (uniquenessRatio);
+	//sbm->setSpeckleWindowSize (speckleWindowSize);
+	//sbm->setSpeckleRange (speckleRange);
+	//sbm->setDisp12MaxDiff(disp12MaxDiff);
+	//sbm->setNumDisparities(validateNDisp());
+	//sbm->setSmallerBlockSize(validateSAD(SADWindowSizeChange));
+
+	if (setSBMVars) {
+		setSBMVars = false;
+		init_sbm();
+	}
 
 	sbm->compute(L, R, disp16S);
 
@@ -225,6 +289,8 @@ void findDisparity(Mat L, Mat R, Rect roiL, Rect roiR) {
 	//normalize(disp16S, disp8U, 0, 255, CV_MINMAX, CV_8U);
 
 	disp16S.convertTo(disp8U, CV_8UC1, 255/(ndisparities*16.0));
+	//imshow("disp8U", disp8U);
+	//waitKey(30);
 }
 
 void on_trackbar(int, void*) {
@@ -446,8 +512,9 @@ int main(int argc, char** argv) {
 		if (preProcess)
 			preProc();
 		
-		findDisparity(crL, crR, newRoi, newRoi);//Outputs disparity map to disp16S
-		//imshow("Disp8U", disp8U);
+		findDisparity(crL, crR, newRoi, newRoi);//Outputs disparity map to disp8U
+		//imshow("Disp", filtered_disp);
+		//waitKey(30);
 
 		//thresh = disp8U;
 		//threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);
