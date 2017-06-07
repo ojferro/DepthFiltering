@@ -5,7 +5,7 @@
   <PropertyGroup />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>D:\Program Files\opencv\build\include;D:\opencv_root\opencv_contrib\modules\stereo\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\Program Files\opencv\build\include;D:\opencv_root\opencv_contrib\modules\stereo\include;D:\opencv_root\opencv_contrib\modules\ximgproc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>D:\Program Files\opencv\build\x64\vc14\lib;D:\opencv_root\build_opencv\lib;D:\Interaptix\Vendor\freeglut-3.0.0\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>

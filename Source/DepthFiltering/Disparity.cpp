@@ -34,7 +34,7 @@ using namespace cv;
 using namespace std;
 
 #define POINT_GREY_FOV 42.5
-#define POINT_GREY_FPS 10.0
+#define POINT_GREY_FPS 5.0	//USED TO BE 10.0
 #define POINT_GREY_EXPOSURE 16
 #define POINT_GREY_GAIN 10.0
 #define POINT_GREY_WHITE_BALANCE 700, 880
@@ -400,29 +400,29 @@ int main(int argc, char** argv) {
 	disparityTrackbars();
 	threshTrackbars();
 
+
+	//TODO: Find more universal way to determine intersection of both ROIs
 	newRoi = Rect(roiR.x, roiR.y, roiDimensions.width, roiDimensions.height);	// 1100, 850..... 950, 550
 
 	//Read, Demosaic, find Disp, Mask
 	while (true) {
+		//READ
 		rawL = PointGreyCam->get_raw_data();
 		rawR = PointGreyCam2->get_raw_data();
+		if (rawL == NULL||rawR == NULL) {
+			cout << "Failed to read raw";
+			waitKey(0);
+		}
 
-		imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
-		//cvtColor(imgBayerL, imgL, COLOR_BayerRG2GRAY);
-		cvtColor(imgBayerL, cimgL, COLOR_BayerBG2BGR);
-		
-		//imgR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
+		//DEMOSAIC
+		imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);		
 		imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
-		//cvtColor(imgBayerR, imgR, COLOR_BayerRG2GRAY);
+		cvtColor(imgBayerL, cimgL, COLOR_BayerBG2BGR);
 		cvtColor(imgBayerR, cimgR, COLOR_BayerBG2BGR);
 
-
-		//remap(imgL, rimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
+		//FIND DISPARITY
 		remap(cimgL, cimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
-		//cvtColor(rimgL, cimgL, COLOR_GRAY2BGR);
-		//remap(imgR, rimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
 		remap(cimgR, cimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
-		//cvtColor(rimgR, cimgR, COLOR_GRAY2BGR);
 
 		////////////Displaying Rectified Images side by side (debugging)/////////
 		/*Mat H;
@@ -436,17 +436,13 @@ int main(int argc, char** argv) {
 		imshow("Combo", H);*/
 		/////////////////////////////////////////////////////////////////////////
 
-		//TODO: Find more universal way to determine intersection of both ROIs
-
-		//crL = rimgL(newRoi);
-		//crR = rimgR(newRoi);
-
+		//Cropping to ROI size
 		cimgL = cimgL(newRoi);
 		cimgR = cimgR(newRoi);
 
+		//Readying imgs to find disparity
 		cvtColor(cimgL, crL, COLOR_BGR2GRAY);
 		cvtColor(cimgR, crR, COLOR_BGR2GRAY);
-
 		if (preProcess)
 			preProc();
 		
@@ -461,19 +457,18 @@ int main(int argc, char** argv) {
 		////////////Attempts at post processing threshold////////////////
 		if (postProcess)
 			postProc();
-
 		imshow("Thresh", thresh);
+
+		//MASK
 		maskedL = imgL;
 		maskedR = imgR;
 
-		//crL.copyTo(maskedL, thresh);
 		cimgL.copyTo(maskedL, thresh);
-		//crR.copyTo(maskedR, thresh);
-		//imshow("CIMGL", cimgL);
 		cimgR.copyTo(maskedR, thresh);
 		imshow("MaskedL", maskedL);
 		//imshow("MaskedR", maskedR);
-		waitKey(30);
+
+		waitKey(1);
 	}
 
 	imwrite("Disp8U.png", disp8U);
