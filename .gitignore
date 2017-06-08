@@ -292,3 +292,4 @@ __pycache__/
 *.png
 *.jpg
 *.vcxproj
+*.dll

@@ -37,10 +37,12 @@ using namespace cv;
 using namespace std;
 
 #define POINT_GREY_FOV 42.5
-#define POINT_GREY_FPS 10.0	//USED TO BE 10.0
+#define POINT_GREY_FPS 15.0	//USED TO BE 10.0
 #define POINT_GREY_EXPOSURE 16
 #define POINT_GREY_GAIN 10.0
 #define POINT_GREY_WHITE_BALANCE 700, 880
+
+#define ESC_KEY 27
 
 /////////////////////GLOBAL VARIABLES//////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -82,7 +84,8 @@ Mat threshTemp;
 
 //For ximgproc filtering//
 Mat left_disp, right_disp, filtered_disp, downsizedL, downsizedR;
-double lambda=8000.0, sigma=1.5;
+int lambda=8000, sigma=1.5*10;
+int RCLThresh, confidence;
 //////////////////////////
 
 int CLOSE_THRESH = 255;
@@ -200,99 +203,7 @@ void init_sbm() {
 	sbm->setSmallerBlockSize(validateSAD(SADWindowSizeChange));
 }
 
-void findDisparity(Mat L, Mat R, Rect roiL, Rect roiR) {
-	//int ndisparities = 128; //16
-	//int SADWindowSize = 9; //9
-	//int minDisparity = 0;
-	
-	///////////////////////STEREO SGBM////////////////////////////////
-	//Ptr<StereoSGBM> sbm = StereoSGBM::create(
-	//	minDisparity,    //int minDisparity
-	//	ndisparities,     //int numDisparities
-	//	SADWindowSize,    //int SADWindowSize ~~ 5
-	//	600,    //int P1 = 0  ~~600
-	//	2400,   //int P2 = 0	~~2400
-	//	20,     //int disp12MaxDiff = 0
-	//	16,     //int preFilterCap = 0
-	//	5,      //int 0 = uniquenessRatio	~~1
-	//	100,    //int speckleWindowSize = 0
-	//	20,     //int speckleRange = 0
-	//	false);  //bool fullDP = false
-	//////////////////////////////////////////////////////////////////
-
-	/////////////////////////////FILTERING////////////////////////////
-	//ndisparities /= 2;
-	//if (ndisparities % 16 != 0)
-	//	ndisparities += 16 - (ndisparities % 16);
-	//resize(L, downsizedL, Size(), 0.5, 0.5);
-	//resize(R, downsizedR, Size(), 0.5, 0.5);
-
-	//Ptr<StereoBM> left_matcher = StereoBM::create(ndisparities, SADWindowSize);
-	//left_matcher->setPreFilterCap(preFilterCap == 0 ? preFilterCap + 1 : preFilterCap);	//must be > 0
-	//left_matcher->setPreFilterType(preFilterType);
-	//////if (preFilterType==0)
-	//////	sbm->setPreFilterSize(preFilterSize);	//issues
-	//left_matcher->setMinDisparity(-minDisparity);
-	//left_matcher->setTextureThreshold(textureThreshold);
-	//left_matcher->setUniquenessRatio (uniquenessRatio);
-	//left_matcher->setSpeckleWindowSize (speckleWindowSize);
-	//left_matcher->setSpeckleRange (speckleRange);
-	//left_matcher->setDisp12MaxDiff(disp12MaxDiff);
-	//left_matcher->setNumDisparities(validateNDisp());
-	//left_matcher->setSmallerBlockSize(validateSAD(SADWindowSizeChange));
-
-	//Ptr<ximgproc::DisparityWLSFilter> wls_filter = ximgproc::createDisparityWLSFilter(left_matcher);
-	//Ptr<StereoMatcher> right_matcher = ximgproc::createRightMatcher(left_matcher);
-
-	//left_matcher->compute(L, R, left_disp);
-	//right_matcher->compute(R, L, right_disp);
-	//Mat test;
-	//left_disp.convertTo(test, CV_8UC1, 255 / (ndisparities*16.0));
-	//imshow("leftDisp", test);
-	//imshow("rightDisp", right_disp);
-
-	//wls_filter->setLambda(lambda);
-	//wls_filter->setSigmaColor(sigma);
-
-	//wls_filter->filter(left_disp, L, filtered_disp, right_disp);
-	//imshow("DISPARITY FILTERED", filtered_disp);
-	//filtered_disp.convertTo(disp8U, CV_8UC1, 255/(ndisparities*16.0));
-	//////////////////////////////////////////////////////////////////
-
-	//Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
-
-	//sbm->setPreFilterCap(preFilterCap == 0 ? preFilterCap + 1 : preFilterCap);	//must be > 0
-	//sbm->setPreFilterType(preFilterType);
-	////if (preFilterType==0)
-	////	sbm->setPreFilterSize(preFilterSize);	//issues
-	//sbm->setMinDisparity(-minDisparity);
-	//sbm->setTextureThreshold(textureThreshold);
-	//sbm->setUniquenessRatio (uniquenessRatio);
-	//sbm->setSpeckleWindowSize (speckleWindowSize);
-	//sbm->setSpeckleRange (speckleRange);
-	//sbm->setDisp12MaxDiff(disp12MaxDiff);
-	//sbm->setNumDisparities(validateNDisp());
-	//sbm->setSmallerBlockSize(validateSAD(SADWindowSizeChange));
-
-	if (setSBMVars) {
-		setSBMVars = false;
-		init_sbm();
-	}
-
-	sbm->compute(L, R, disp16S);
-
-	/*double maxVal, minVal;
-	minMaxLoc(disp16S, &minVal, &maxVal);
-	printf("Min disp: %f Max value: %f \n", minVal, maxVal);
-	*/
-
-	//normalize(disp16S, disp8U, 0, 255, CV_MINMAX, CV_8U);
-
-	disp16S.convertTo(disp8U, CV_8UC1, 255/(ndisparities*16.0));
-	//imshow("disp8U", disp8U);
-	//waitKey(30);
-}
-
+/////////////////////////TRACKBARS//////////////////////////
 void on_trackbar(int, void*) {
 	//ndisparities = (ndisparitiesChange % 16 == 0) ? ndisparitiesChange : (ndisparities/16)*16;
 }
@@ -334,6 +245,127 @@ void threshTrackbars() {
 	namedWindow(windowName, 0);
 	createTrackbar("CLOSE_THRESH", windowName, &CLOSE_THRESH, 255, NULL);
 	createTrackbar("FAR_THRESH", windowName, &FAR_THRESH, 255, NULL);
+}
+
+void filteringTrackbars() {
+	String windowName = "FilteringTrackbars";
+
+	namedWindow(windowName, 0);
+	createTrackbar("lambda", windowName, &lambda, 12000, NULL);
+	createTrackbar("sigma", windowName, &sigma, 100, NULL);
+	createTrackbar("RCLThresh", windowName, &RCLThresh, 50, NULL);
+	createTrackbar("Confidence", windowName, &confidence, 20, NULL);
+}
+////////////////////////////////////////////////////////////
+
+void findDisparity(Mat L, Mat R, Rect roiL, Rect roiR) {
+
+	//WORKING VERSION//
+	if (setSBMVars) {
+		setSBMVars = false;
+		init_sbm();
+	}
+
+	sbm->compute(L, R, disp16S);
+	disp16S.convertTo(disp8U, CV_8UC1, 255 / (ndisparities*16.0));
+
+	//int ndisparities = 128; //16
+	//int SADWindowSize = 9; //9
+	//int minDisparity = 0;
+	
+	///////////////////////STEREO SGBM////////////////////////////////
+	//Ptr<StereoSGBM> sbm = StereoSGBM::create(
+	//	minDisparity,    //int minDisparity
+	//	ndisparities,     //int numDisparities
+	//	SADWindowSize,    //int SADWindowSize ~~ 5
+	//	600,    //int P1 = 0  ~~600
+	//	2400,   //int P2 = 0	~~2400
+	//	20,     //int disp12MaxDiff = 0
+	//	16,     //int preFilterCap = 0
+	//	5,      //int 0 = uniquenessRatio	~~1
+	//	100,    //int speckleWindowSize = 0
+	//	20,     //int speckleRange = 0
+	//	false);  //bool fullDP = false
+	//	sbm->compute(L, R, disp16S);
+	//	disp16S.convertTo(disp8U, CV_8UC1, 255 / (ndisparities*16.0));
+	//////////////////////////////////////////////////////////////////
+
+	/////////////////////////////FILTERING////////////////////////////
+	//filteringTrackbars();
+
+	//ndisparities /= 2;
+	//if (ndisparities % 16 != 0)
+	//	ndisparities += 16 - (ndisparities % 16);
+	//resize(L, downsizedL, Size(), 0.5, 0.5);
+	//resize(R, downsizedR, Size(), 0.5, 0.5);
+
+	//Ptr<StereoBM> left_matcher = StereoBM::create(ndisparities*2, SADWindowSize);
+	//left_matcher->setPreFilterCap(preFilterCap == 0 ? preFilterCap + 1 : preFilterCap);	//must be > 0
+	//left_matcher->setPreFilterType(preFilterType);
+	//////if (preFilterType==0)
+	//////	sbm->setPreFilterSize(preFilterSize);	//issues
+	//left_matcher->setMinDisparity(-minDisparity);
+	//left_matcher->setTextureThreshold(textureThreshold);
+	//left_matcher->setUniquenessRatio (uniquenessRatio);
+	//left_matcher->setSpeckleWindowSize (speckleWindowSize);
+	//left_matcher->setSpeckleRange (speckleRange);
+	//left_matcher->setDisp12MaxDiff(disp12MaxDiff);
+	//left_matcher->setNumDisparities(validateNDisp());
+	//left_matcher->setSmallerBlockSize(validateSAD(SADWindowSizeChange));
+
+	//Ptr<ximgproc::DisparityWLSFilter> wls_filter = ximgproc::createDisparityWLSFilter(left_matcher);
+	//Ptr<StereoMatcher> right_matcher = ximgproc::createRightMatcher(left_matcher);
+
+	//left_matcher->compute(downsizedL, downsizedR, left_disp);
+	//right_matcher->compute(downsizedR, downsizedL, right_disp);
+	//Mat test;
+	//left_disp.convertTo(test, CV_8UC1, 255 / (ndisparities*16.0));
+	////imshow("leftDisp", test);
+	////imshow("rightDisp", right_disp);
+
+	//wls_filter->setLambda(lambda);
+	//wls_filter->setSigmaColor(sigma/4.0);
+
+	//wls_filter->filter(left_disp, L, filtered_disp, right_disp);
+
+	//Mat raw_disp_vis;
+	//ximgproc::getDisparityVis(left_disp, raw_disp_vis, 1);
+	//imshow("raw disparity", raw_disp_vis);
+	//Mat filtered_disp_vis;
+	//ximgproc::getDisparityVis(filtered_disp, filtered_disp_vis, 1);
+	//imshow("filtered disparity", filtered_disp_vis);
+
+	////imshow("DISPARITY FILTERED", filtered_disp);
+	//filtered_disp.convertTo(disp8U, CV_8UC1, 255/(ndisparities*16.0));
+	//////////////////////////////////////////////////////////////////
+
+	//ADDED STUFF!!!//
+	//filteringTrackbars();
+	//Ptr<ximgproc::DisparityWLSFilter> wls_filter = ximgproc::createDisparityWLSFilter(sbm);
+	//wls_filter->setLambda(lambda);
+	//wls_filter->setSigmaColor(sigma / 10.0);
+	//wls_filter->setLRCthresh(RCLThresh);
+	//wls_filter->setDepthDiscontinuityRadius(confidence);
+
+	//Ptr<StereoMatcher> right_matcher = ximgproc::createRightMatcher(sbm);
+	//right_matcher->compute(R, L, right_disp);
+	//Mat RDisp8U;
+	//right_disp.convertTo(RDisp8U, CV_8UC1, 255 / (ndisparities*16.0));
+	//imshow("RDISP", RDisp8U);
+
+	//wls_filter->filter(disp16S, L, filtered_disp, right_disp);
+	////cout << filtered_disp.type();
+	//imshow("FD", filtered_disp);
+	//filtered_disp.convertTo(disp8U, CV_8UC1, 255 / (ndisparities*16.0));
+	/*double maxVal, minVal;
+	minMaxLoc(disp16S, &minVal, &maxVal);
+	printf("Min disp: %f Max value: %f \n", minVal, maxVal);*/
+	
+
+	//normalize(disp16S, disp8U, 0, 255, CV_MINMAX, CV_8U);
+
+	imshow("disp8U", disp8U);
+	//waitKey(30);
 }
 
 ///////////////Initializing (regular) Webcams (not PointGrey)//////////////////
@@ -459,18 +491,16 @@ int main(int argc, char** argv) {
 	//maskingTrackbars();
 
 	stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, -1, imageSize, &roiL, &roiR);
-
-
 	initUndistortRectifyMap(M1, D1, R1, P1, imageSize, CV_16SC2, rmap[0][0], rmap[0][1]);
 	initUndistortRectifyMap(M2, D2, R2, P2, imageSize, CV_16SC2, rmap[1][0], rmap[1][1]);
-	disparityTrackbars();
-	threshTrackbars();
+	//disparityTrackbars();
+	//threshTrackbars();
 
 
 	//TODO: Find more universal way to determine intersection of both ROIs
 	newRoi = Rect(roiR.x, roiR.y, roiDimensions.width, roiDimensions.height);	// 1100, 850..... 950, 550
 
-	//Read, Demosaic, find Disp, Mask
+	//MAIN LOOP: Read, Demosaic, find Disp, Mask
 	while (true) {
 		//READ
 		rawL = PointGreyCam->get_raw_data();
@@ -486,21 +516,21 @@ int main(int argc, char** argv) {
 		cvtColor(imgBayerL, cimgL, COLOR_BayerBG2BGR);
 		cvtColor(imgBayerR, cimgR, COLOR_BayerBG2BGR);
 
-		//FIND DISPARITY
-		remap(cimgL, cimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
-		remap(cimgR, cimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
-
 		////////////Displaying Rectified Images side by side (debugging)/////////
 		/*Mat H;
 		hconcat(rimgL, rimgR, H);
 
 		int distBtwnLines = 20;
 		for (int l = 0; l < H.rows; l += distBtwnLines)
-			line(H, Point(0, l), Point(H.cols, l), Scalar(0, 0, 255));
+		line(H, Point(0, l), Point(H.cols, l), Scalar(0, 0, 255));
 		rectangle(H, roiL, Scalar(0, 0, 255), 2, 8, 0);
 		rectangle(H, Rect(roiR.x+rimgL.cols, roiR.y,roiR.width, roiR.height) , Scalar(0, 0, 255), 2, 8, 0);
 		imshow("Combo", H);*/
 		/////////////////////////////////////////////////////////////////////////
+
+		//FIND DISPARITY
+		remap(cimgL, cimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
+		remap(cimgR, cimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
 
 		//Cropping to ROI size
 		cimgL = cimgL(newRoi);
@@ -535,15 +565,14 @@ int main(int argc, char** argv) {
 		imshow("MaskedL", maskedL);
 		//imshow("MaskedR", maskedR);
 
-		waitKey(1);
+		if (waitKey(1) == ESC_KEY) {
+			delete PointGreyCam;
+			delete PointGreyCam2;
+			break;
+		}
 	}
-
-	imwrite("Disp8U.png", disp8U);
-	imshow("Disp16S", disp16S);
-
-	//waitKey(0);
-
-	
+	//imwrite("Disp8U.png", disp8U);
+	//imshow("Disp16S", disp16S);
 
 	//for debugging purposes only//
 	//Mat colour_disp8U;	
