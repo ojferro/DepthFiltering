@@ -95,10 +95,31 @@
 //						timg = img;
 //					else
 //						resize(img, timg, Size(), scale, scale);
-//					found = findChessboardCorners(timg, boardSize, corners,
-//						CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE);
-//					drawChessboardCorners(timg, boardSize, corners,
-//						found);
+//
+//					cv::Mat input;
+//					found = findChessboardCorners(timg, boardSize, input, CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE);
+//
+//					//input.copyTo(corners);
+//					corners.resize(boardSize.height*boardSize.width);
+//					for (int i = 0; i < input.rows; i++)
+//					{
+//						corners[i].x = input.at<float>(i ,0);
+//						corners[i].y = input.at<float>(i, 1);
+//					}
+//
+//					std::cout << "======================\n"<<input << std::endl;
+//					std::cout << "debugging corners\n" << corners.size() << endl;
+//					/*for (auto& i : corners)
+//					{
+//						std::cout <<i<<" "<< corners[i] << endl;
+//					}*/
+//					cout << "TEST!!!" << endl;
+//					for (vector<Point2f>::const_iterator iter = corners.begin(); iter != corners.end(); ++iter)
+//					{
+//						cout << *iter << endl;
+//					}
+//
+//					drawChessboardCorners(timg, boardSize, input, found);
 //					imshow("window", timg);
 //					waitKey(30);
 //					if (found)
@@ -355,7 +376,7 @@
 //		Size boardSize;
 //		string imagelistfn;
 //		bool showRectified;
-//		cv::CommandLineParser parser(argc, argv, "{w|9|}{h|6|}{s|1.0|}{nr||}{help||}{@input|../data/stereo_calib.xml|}");
+//		cv::CommandLineParser parser(argc, argv, "{w|9|}{h|6|}{s|3.55|}{nr||}{help||}{@input|../data/stereo_calib.xml|}");
 //		if (parser.has("help"))
 //			return print_help();
 //		showRectified = !parser.has("nr");
