@@ -23,7 +23,9 @@ TODO TUESDAY JUNE 6:
 #include <iomanip>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/aruco.hpp>
+
 #include <opencv2/ximgproc.hpp>
+#include <opencv2/ximgproc/seeds.hpp>
 #include <opencv2/ximgproc/disparity_filter.hpp>
 
 
@@ -97,7 +99,7 @@ int FAR_THRESH = 61;	//61 works the best
 
 Size imageSize;
 
-const bool webcam = true;
+const bool webcam = false;
 const bool calibrated = true;
 const bool postProcess = true;
 const bool preProcess = true;
@@ -157,7 +159,7 @@ int init_PointGrey()
 	else
 	{
 		printf("Error. %d Cameras found. Exiting.\n", num_cameras);
-		waitKey(2000);
+		waitKey(0);
 		exit(1);
 	}
 
@@ -258,6 +260,29 @@ void filteringTrackbars() {
 }
 ////////////////////////////////////////////////////////////
 
+void superpixels() {	//Self contained as of now. Probably make global later.
+	int numSuperpixels = 400, numLevels = 4, prior = 2, histogramBins = 5, numIterations = 5;
+	Mat HSVimgL;
+	Mat HSVimgR;
+	Mat labels;
+	Mat mask;
+	Mat result = cimgL.clone();
+	//Ptr<ximgproc::SuperpixelSEEDS> seeds = ximgproc::createSuperpixelSEEDS(cimgL.size().width, cimgL.size().height, 3, numSuperpixels, numLevels, prior, histogramBins, false);
+	Ptr<ximgproc::SuperpixelSLIC> seeds = ximgproc::createSuperpixelSLIC(result, ximgproc::SLICO, 20, 10.0f);
+
+	cvtColor(cimgL, HSVimgL, COLOR_BGR2HSV);
+	cvtColor(cimgR, HSVimgR, COLOR_BGR2HSV);
+	seeds->iterate(numIterations);	//For SLIC
+	//seeds->iterate(HSVimgR, numIterations);	//For SEEDS
+
+	seeds->getLabels(labels);
+	seeds->getLabelContourMask(mask, false);
+	result.setTo(Scalar(0, 0, 255), mask);
+
+	imshow("Superpixels!", result);
+	//cout <<"num:"<< seeds->getNumberOfSuperpixels() << endl;
+}
+
 void findDisparity(Mat L, Mat R, Rect roiL, Rect roiR) {
 
 	//WORKING VERSION//
@@ -268,104 +293,7 @@ void findDisparity(Mat L, Mat R, Rect roiL, Rect roiR) {
 
 	sbm->compute(L, R, disp16S);
 	disp16S.convertTo(disp8U, CV_8UC1, 255 / (ndisparities*16.0));
-
-	//int ndisparities = 128; //16
-	//int SADWindowSize = 9; //9
-	//int minDisparity = 0;
-	
-	///////////////////////STEREO SGBM////////////////////////////////
-	//Ptr<StereoSGBM> sbm = StereoSGBM::create(
-	//	minDisparity,    //int minDisparity
-	//	ndisparities,     //int numDisparities
-	//	SADWindowSize,    //int SADWindowSize ~~ 5
-	//	600,    //int P1 = 0  ~~600
-	//	2400,   //int P2 = 0	~~2400
-	//	20,     //int disp12MaxDiff = 0
-	//	16,     //int preFilterCap = 0
-	//	5,      //int 0 = uniquenessRatio	~~1
-	//	100,    //int speckleWindowSize = 0
-	//	20,     //int speckleRange = 0
-	//	false);  //bool fullDP = false
-	//	sbm->compute(L, R, disp16S);
-	//	disp16S.convertTo(disp8U, CV_8UC1, 255 / (ndisparities*16.0));
-	//////////////////////////////////////////////////////////////////
-
-	/////////////////////////////FILTERING////////////////////////////
-	//filteringTrackbars();
-
-	//ndisparities /= 2;
-	//if (ndisparities % 16 != 0)
-	//	ndisparities += 16 - (ndisparities % 16);
-	//resize(L, downsizedL, Size(), 0.5, 0.5);
-	//resize(R, downsizedR, Size(), 0.5, 0.5);
-
-	//Ptr<StereoBM> left_matcher = StereoBM::create(ndisparities*2, SADWindowSize);
-	//left_matcher->setPreFilterCap(preFilterCap == 0 ? preFilterCap + 1 : preFilterCap);	//must be > 0
-	//left_matcher->setPreFilterType(preFilterType);
-	//////if (preFilterType==0)
-	//////	sbm->setPreFilterSize(preFilterSize);	//issues
-	//left_matcher->setMinDisparity(-minDisparity);
-	//left_matcher->setTextureThreshold(textureThreshold);
-	//left_matcher->setUniquenessRatio (uniquenessRatio);
-	//left_matcher->setSpeckleWindowSize (speckleWindowSize);
-	//left_matcher->setSpeckleRange (speckleRange);
-	//left_matcher->setDisp12MaxDiff(disp12MaxDiff);
-	//left_matcher->setNumDisparities(validateNDisp());
-	//left_matcher->setSmallerBlockSize(validateSAD(SADWindowSizeChange));
-
-	//Ptr<ximgproc::DisparityWLSFilter> wls_filter = ximgproc::createDisparityWLSFilter(left_matcher);
-	//Ptr<StereoMatcher> right_matcher = ximgproc::createRightMatcher(left_matcher);
-
-	//left_matcher->compute(downsizedL, downsizedR, left_disp);
-	//right_matcher->compute(downsizedR, downsizedL, right_disp);
-	//Mat test;
-	//left_disp.convertTo(test, CV_8UC1, 255 / (ndisparities*16.0));
-	////imshow("leftDisp", test);
-	////imshow("rightDisp", right_disp);
-
-	//wls_filter->setLambda(lambda);
-	//wls_filter->setSigmaColor(sigma/4.0);
-
-	//wls_filter->filter(left_disp, L, filtered_disp, right_disp);
-
-	//Mat raw_disp_vis;
-	//ximgproc::getDisparityVis(left_disp, raw_disp_vis, 1);
-	//imshow("raw disparity", raw_disp_vis);
-	//Mat filtered_disp_vis;
-	//ximgproc::getDisparityVis(filtered_disp, filtered_disp_vis, 1);
-	//imshow("filtered disparity", filtered_disp_vis);
-
-	////imshow("DISPARITY FILTERED", filtered_disp);
-	//filtered_disp.convertTo(disp8U, CV_8UC1, 255/(ndisparities*16.0));
-	//////////////////////////////////////////////////////////////////
-
-	//ADDED STUFF!!!//
-	//filteringTrackbars();
-	//Ptr<ximgproc::DisparityWLSFilter> wls_filter = ximgproc::createDisparityWLSFilter(sbm);
-	//wls_filter->setLambda(lambda);
-	//wls_filter->setSigmaColor(sigma / 10.0);
-	//wls_filter->setLRCthresh(RCLThresh);
-	//wls_filter->setDepthDiscontinuityRadius(confidence);
-
-	//Ptr<StereoMatcher> right_matcher = ximgproc::createRightMatcher(sbm);
-	//right_matcher->compute(R, L, right_disp);
-	//Mat RDisp8U;
-	//right_disp.convertTo(RDisp8U, CV_8UC1, 255 / (ndisparities*16.0));
-	//imshow("RDISP", RDisp8U);
-
-	//wls_filter->filter(disp16S, L, filtered_disp, right_disp);
-	////cout << filtered_disp.type();
-	//imshow("FD", filtered_disp);
-	//filtered_disp.convertTo(disp8U, CV_8UC1, 255 / (ndisparities*16.0));
-	/*double maxVal, minVal;
-	minMaxLoc(disp16S, &minVal, &maxVal);
-	printf("Min disp: %f Max value: %f \n", minVal, maxVal);*/
-	
-
-	//normalize(disp16S, disp8U, 0, 255, CV_MINMAX, CV_8U);
-
 	imshow("disp8U", disp8U);
-	//waitKey(30);
 }
 
 ///////////////Initializing (regular) Webcams (not PointGrey)//////////////////
@@ -502,19 +430,25 @@ int main(int argc, char** argv) {
 
 	//MAIN LOOP: Read, Demosaic, find Disp, Mask
 	while (true) {
-		//READ
-		rawL = PointGreyCam->get_raw_data();
-		rawR = PointGreyCam2->get_raw_data();
-		if (rawL == NULL||rawR == NULL) {
-			cout << "Failed to read raw";
-			waitKey(0);
-		}
+		if (webcam) {
+			//READ
+			rawL = PointGreyCam->get_raw_data();
+			rawR = PointGreyCam2->get_raw_data();
+			if (rawL == NULL || rawR == NULL) {
+				cout << "Failed to read raw";
+				waitKey(0);
+			}
 
-		//DEMOSAIC
-		imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);		
-		imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
-		cvtColor(imgBayerL, cimgL, COLOR_BayerBG2BGR);
-		cvtColor(imgBayerR, cimgR, COLOR_BayerBG2BGR);
+			//DEMOSAIC
+			imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
+			imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
+			cvtColor(imgBayerL, cimgL, COLOR_BayerBG2BGR);
+			cvtColor(imgBayerR, cimgR, COLOR_BayerBG2BGR);
+		}
+		else {
+			cimgL = imread(imgLfn, IMREAD_COLOR);
+			cimgR = imread(imgRfn, IMREAD_COLOR);
+		}
 
 		////////////Displaying Rectified Images side by side (debugging)/////////
 		/*Mat H;
@@ -535,6 +469,9 @@ int main(int argc, char** argv) {
 		//Cropping to ROI size
 		cimgL = cimgL(newRoi);
 		cimgR = cimgR(newRoi);
+
+		//Superpixels
+		superpixels();
 
 		//Readying imgs to find disparity
 		cvtColor(cimgL, crL, COLOR_BGR2GRAY);
