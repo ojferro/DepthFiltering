@@ -113,11 +113,11 @@
 //					{
 //						std::cout <<i<<" "<< corners[i] << endl;
 //					}*/
-//					cout << "TEST!!!" << endl;
-//					for (vector<Point2f>::const_iterator iter = corners.begin(); iter != corners.end(); ++iter)
+//					//cout << "TEST!!!" << endl;
+//					/*for (vector<Point2f>::const_iterator iter = corners.begin(); iter != corners.end(); ++iter)
 //					{
 //						cout << *iter << endl;
-//					}
+//					}*/
 //
 //					drawChessboardCorners(timg, boardSize, input, found);
 //					imshow("window", timg);

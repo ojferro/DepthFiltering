@@ -90,8 +90,22 @@ int lambda=8000, sigma=1.5*10;
 int RCLThresh, confidence;
 //////////////////////////
 
+//For Superpixels/////////
+int numSuperpixels = 500, numLevels = 4, prior = 2, histogramBins = 5, numIterations = 6, maxLabel, regionSize = 75, ruler = 50;
+Mat HSVimgL;
+Mat HSVimgR;
+Mat labels;
+Mat mask;
+Mat result;
+Mat maskedSuperpixel;
+Mat filteredImg;
+Mat threshSTATIC;
+bool refreshThreshSTATIC = true;
+Ptr<ximgproc::SuperpixelSLIC> seeds;
+//////////////////////////
+
 int CLOSE_THRESH = 255;
-int FAR_THRESH = 61;	//61 works the best
+int FAR_THRESH = 42;	//61 works the best
 
 //VideoCapture capL;
 //VideoCapture capR;
@@ -99,7 +113,7 @@ int FAR_THRESH = 61;	//61 works the best
 
 Size imageSize;
 
-const bool webcam = false;
+const bool webcam = true;
 const bool calibrated = true;
 const bool postProcess = true;
 const bool preProcess = true;
@@ -155,6 +169,7 @@ int init_PointGrey()
 		PointGreyCam->set_white_balance(POINT_GREY_WHITE_BALANCE);
 		FRAME_WIDTH = PointGreyCam->get_width();
 		FRAME_HEIGHT = PointGreyCam->get_height();
+		cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\nFRAME HEIGHT" << FRAME_HEIGHT << endl;
 	}
 	else
 	{
@@ -258,29 +273,68 @@ void filteringTrackbars() {
 	createTrackbar("RCLThresh", windowName, &RCLThresh, 50, NULL);
 	createTrackbar("Confidence", windowName, &confidence, 20, NULL);
 }
+
+void superPixelTrackbars() {
+	//int numSuperpixels = 500, numLevels = 4, prior = 2, histogramBins = 5, numIterations = 8, maxLabel;
+
+	String windowName = "superPX Trackbars";
+
+	namedWindow(windowName, 0);
+	createTrackbar("numSuperpx", windowName, &numSuperpixels, 1000, NULL);
+	createTrackbar("numLevels", windowName, &numLevels, 100, NULL);
+	createTrackbar("prior", windowName, &prior, 10, NULL);
+	createTrackbar("histogramBins", windowName, &histogramBins, 15, NULL);
+	createTrackbar("numIter", windowName, &numIterations, 30, NULL);
+	createTrackbar("regionSize", windowName, &regionSize, 200, NULL);
+	createTrackbar("ruler", windowName, &ruler, 255, NULL);
+}
 ////////////////////////////////////////////////////////////
 
 void superpixels() {	//Self contained as of now. Probably make global later.
-	int numSuperpixels = 400, numLevels = 4, prior = 2, histogramBins = 5, numIterations = 5;
-	Mat HSVimgL;
-	Mat HSVimgR;
-	Mat labels;
-	Mat mask;
-	Mat result = cimgL.clone();
 	//Ptr<ximgproc::SuperpixelSEEDS> seeds = ximgproc::createSuperpixelSEEDS(cimgL.size().width, cimgL.size().height, 3, numSuperpixels, numLevels, prior, histogramBins, false);
-	Ptr<ximgproc::SuperpixelSLIC> seeds = ximgproc::createSuperpixelSLIC(result, ximgproc::SLICO, 20, 10.0f);
+	result = cimgL.clone();
 
-	cvtColor(cimgL, HSVimgL, COLOR_BGR2HSV);
-	cvtColor(cimgR, HSVimgR, COLOR_BGR2HSV);
+	/*cvtColor(cimgL, HSVimgL, COLOR_BGR2HSV);
+	cvtColor(cimgR, HSVimgR, COLOR_BGR2Lab);*/
+
+	seeds = ximgproc::createSuperpixelSLIC(result, ximgproc::SLIC, regionSize, ruler);
+	//seeds->enforceLabelConnectivity(1);
+	
+	cout << "Starting iterations" << endl;
 	seeds->iterate(numIterations);	//For SLIC
-	//seeds->iterate(HSVimgR, numIterations);	//For SEEDS
+	cout << "Ending iterations" << endl;
+	//seeds->iterate(result, numIterations);	//For SEEDS
 
 	seeds->getLabels(labels);
 	seeds->getLabelContourMask(mask, false);
 	result.setTo(Scalar(0, 0, 255), mask);
 
+	/*double maxDLabel;
+	minMaxLoc(labels, NULL, &maxDLabel);
+	int maxLabel = int(maxDLabel);
+	cout << "num:" << seeds->getNumberOfSuperpixels() << endl;
+	*/
+	maxLabel = seeds->getNumberOfSuperpixels();
+	filteredImg = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
+
+	for (int labelNum = 0; labelNum <= maxLabel; labelNum++) {
+		Mat labelMask = labels == labelNum;
+		//result.copyTo(maskedSuperpixel, labelMask);
+		//imshow("Masked superpixel", maskedSuperpixel);
+		//disp8USP=disp8U.clone();
+		//disp8U.copyTo(disp8USP, mask);
+		double avg = sum(mean(disp8U, labelMask))[0];
+		//cout << avg << endl;
+		if (avg >= FAR_THRESH)
+			cimgL.copyTo(filteredImg, labelMask);
+ 		//waitKey(30);
+	}
+	//waitKey(0);
+
+	imshow("FilteredImg", filteredImg);
 	imshow("Superpixels!", result);
-	//cout <<"num:"<< seeds->getNumberOfSuperpixels() << endl;
+	//imshow("Disp8USP", disp8USP);
+	//cout<<labels<<endl;
 }
 
 void findDisparity(Mat L, Mat R, Rect roiL, Rect roiR) {
@@ -344,7 +398,7 @@ void preProc() {
 }
 
 void postProc (){
-	Mat temp, kernel;
+	//Mat temp, kernel;
 	/*erode(thresh, temp, kernel);
 	dilate(temp, thresh, kernel);*/
 	
@@ -399,6 +453,7 @@ int main(int argc, char** argv) {
 			waitKey(0);
 			return 1;
 		}
+		cout <<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\nFRAME HEIGHT"<< FRAME_HEIGHT<<endl;
 		
 		disp16S = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_16S);
 		disp8U = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1);
@@ -422,7 +477,7 @@ int main(int argc, char** argv) {
 	initUndistortRectifyMap(M1, D1, R1, P1, imageSize, CV_16SC2, rmap[0][0], rmap[0][1]);
 	initUndistortRectifyMap(M2, D2, R2, P2, imageSize, CV_16SC2, rmap[1][0], rmap[1][1]);
 	//disparityTrackbars();
-	//threshTrackbars();
+	threshTrackbars();
 
 
 	//TODO: Find more universal way to determine intersection of both ROIs
@@ -470,9 +525,6 @@ int main(int argc, char** argv) {
 		cimgL = cimgL(newRoi);
 		cimgR = cimgR(newRoi);
 
-		//Superpixels
-		superpixels();
-
 		//Readying imgs to find disparity
 		cvtColor(cimgL, crL, COLOR_BGR2GRAY);
 		cvtColor(cimgR, crR, COLOR_BGR2GRAY);
@@ -480,6 +532,7 @@ int main(int argc, char** argv) {
 			preProc();
 		
 		findDisparity(crL, crR, newRoi, newRoi);//Outputs disparity map to disp8U
+
 		//imshow("Disp", filtered_disp);
 		//waitKey(30);
 
@@ -487,6 +540,15 @@ int main(int argc, char** argv) {
 		//threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);
 		//threshold(threshTemp, thresh, FAR_THRESH, 255, 3);	//4 = Threshold to Zero Inverted
 		threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);
+		if (refreshThreshSTATIC) {
+			threshSTATIC = thresh.clone();
+			refreshThreshSTATIC = false;
+		}
+
+		//Superpixels
+		superPixelTrackbars();
+		superpixels();
+
 
 		////////////Attempts at post processing threshold////////////////
 		if (postProcess)
@@ -499,7 +561,7 @@ int main(int argc, char** argv) {
 
 		cimgL.copyTo(maskedL, thresh);
 		cimgR.copyTo(maskedR, thresh);
-		imshow("MaskedL", maskedL);
+		//imshow("MaskedL", maskedL);
 		//imshow("MaskedR", maskedR);
 
 		if (waitKey(1) == ESC_KEY) {
