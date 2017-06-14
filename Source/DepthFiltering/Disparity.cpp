@@ -14,9 +14,6 @@
 #include <opencv2/ximgproc.hpp>
 #include <opencv2/ximgproc/seeds.hpp>
 #include <opencv2/ximgproc/disparity_filter.hpp>
-
-
-//#include "ICamera.h"
 #include "point_grey_cam.h"
 #include "point_grey_sim.h"
 
@@ -25,7 +22,7 @@ using namespace cv;
 using namespace std;
 
 #define POINT_GREY_FOV 42.5
-#define POINT_GREY_FPS 15.0	//USED TO BE 10.0
+#define POINT_GREY_FPS 15.0
 #define POINT_GREY_EXPOSURE 16
 #define POINT_GREY_GAIN 10.0
 #define POINT_GREY_WHITE_BALANCE 700, 880
@@ -34,8 +31,8 @@ using namespace std;
 
 /////////////////////GLOBAL VARIABLES//////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
-Mat imgL;
-Mat imgR;
+//Mat imgL;
+//Mat imgR;
 uchar* rawL;
 uchar* rawR;
 Mat cimgL;
@@ -58,9 +55,7 @@ Mat imgBayerL;
 Mat imgBayerR;
 
 Mat rmap[2][2];
-Mat rimgL, rimgR;
 Rect roiL, roiR, newRoi;
-Size roiDimensions(1100, 850);
 
 Mat crL;
 Mat crR;
@@ -70,20 +65,20 @@ Mat maskedR;
 Mat thresh;
 Mat threshTemp;
 
-//For ximgproc filtering//
-Mat left_disp, right_disp, filtered_disp, downsizedL, downsizedR;
-int lambda=8000, sigma=1.5*10;
-int RCLThresh, confidence;
-//////////////////////////
-
 //For Superpixels/////////
-int numSuperpixels = 500, numLevels = 4, prior = 2, histogramBins = 5, numIterations = 6, maxLabel, regionSize = 75, ruler = 50;
-Mat HSVimgL;
-Mat HSVimgR;
+int numSuperpixels = 500;
+int numLevels = 4;
+int prior = 2;
+int histogramBins = 5;
+int numIterations = 6;
+int maxLabel;
+int regionSize = 75;
+int ruler = 50;
+
 Mat labels;
-Mat mask;
-Mat superpixelatedImg;
-Mat maskedSuperpixel;
+Mat superpixelEdges;
+Mat labelMask;
+Mat superpixelatedImg;	//Debugging only (to show the superpixels on img. Not needed for ultimate purpose of program)
 Mat filteredImg;
 
 Ptr<ximgproc::SuperpixelSLIC> seeds;
@@ -101,9 +96,9 @@ int FAR_THRESH = 42;	//61 works the best
 Size imageSize;
 
 const bool webcam = true;
-const bool calibrated = true;
 const bool postProcess = false;
 const bool preProcess = true;
+const bool showDebugImgs = true;
 
 const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
 const String EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
@@ -127,7 +122,6 @@ int uniquenessRatio = 1;
 int speckleWindowSize = 12;
 int speckleRange = 256;
 int disp12MaxDiff = 0;
-bool setSBMVars = true; //to initialize the variables but avoid repetition afterwards
 ////////////////////////////////Point Grey Cameras/////////////////////////////////////////
 point_grey_camera_manager * GigeManager = 0;
 ICamera * PointGreyCam = 0;
@@ -246,16 +240,6 @@ void threshTrackbars() {
 	createTrackbar("FAR_THRESH", windowName, &FAR_THRESH, 255, NULL);
 }
 
-void filteringTrackbars() {
-	String windowName = "FilteringTrackbars";
-
-	namedWindow(windowName, 0);
-	createTrackbar("lambda", windowName, &lambda, 12000, NULL);
-	createTrackbar("sigma", windowName, &sigma, 100, NULL);
-	createTrackbar("RCLThresh", windowName, &RCLThresh, 50, NULL);
-	createTrackbar("Confidence", windowName, &confidence, 20, NULL);
-}
-
 void superPixelTrackbars() {
 	//int numSuperpixels = 500, numLevels = 4, prior = 2, histogramBins = 5, numIterations = 8, maxLabel;
 
@@ -273,50 +257,40 @@ void superPixelTrackbars() {
 ////////////////////////////////////////////////////////////
 
 void superpixels() {
-	//Ptr<ximgproc::SuperpixelSEEDS> seeds = ximgproc::createSuperpixelSEEDS(cimgL.size().width, cimgL.size().height, 3, numSuperpixels, numLevels, prior, histogramBins, false);
-	superpixelatedImg = cimgL.clone();
-
-	/*cvtColor(cimgL, HSVimgL, COLOR_BGR2HSV);
-	cvtColor(cimgR, HSVimgR, COLOR_BGR2Lab);*/
-
-	seeds = ximgproc::createSuperpixelSLIC(superpixelatedImg, ximgproc::SLIC, regionSize, ruler);
+	seeds = ximgproc::createSuperpixelSLIC(cimgL, ximgproc::SLIC, regionSize, ruler);
 	//seeds->enforceLabelConnectivity(1);
 	
 	cout << "Starting iterations" << endl;
-	seeds->iterate(numIterations);	//For SLIC
-	//seeds->iterate(superpixelatedImg, numIterations);	//For SEEDS
-
+	seeds->iterate(numIterations);
 	seeds->getLabels(labels);
-	seeds->getLabelContourMask(mask, false);
-
-	superpixelatedImg.setTo(Scalar(0, 255, 0), mask);
+	seeds->getLabelContourMask(superpixelEdges, false);
+	
+	//////////////////////////////////////////////////////////////////
+	//To show the superpixelated img. Only needed for debug purposes//
+	superpixelatedImg = cimgL.clone();
+	superpixelatedImg.setTo(Scalar(0, 255, 0), superpixelEdges);
+	//////////////////////////////////////////////////////////////////
 
 	maxLabel = seeds->getNumberOfSuperpixels();
 	filteredImg = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
 
-	Mat labelMask, disp8USP;
+	//Iterates through every superpixel
 	for (int labelNum = 0; labelNum <= maxLabel; labelNum++) {
-		labelMask = labels == labelNum;//Matrix that holls
-		double avg = sum(mean(disp8U, labelMask))[0];
-		//double avg = mean(disp8U, labelMask)[0];
+
+		//Masks out everything but 1 superpixel at a time
+		labelMask = labels == labelNum;
+		double avg = mean(disp8U, labelMask)[0];
+
+		//Only copies over superpixels whose avg. on the disp8U image is > thresh
 		if (avg >= FAR_THRESH)
 			cimgL.copyTo(filteredImg, labelMask);
 	}
-	imshow("FilteredImg", filteredImg);
-	imshow("Superpixels!", superpixelatedImg);
 }
 
-void findDisparity(Mat L, Mat R, Rect roiL, Rect roiR) {
-
-	//WORKING VERSION//
-	if (setSBMVars) {
-		setSBMVars = false;
-		init_sbm();
-	}
-
-	sbm->compute(L, R, disp16S);
+void findDisparity(Mat Limg, Mat Rimg) {
+	//Parameters are set by calling init_sbm()
+	sbm->compute(Limg, Rimg, disp16S);
 	disp16S.convertTo(disp8U, CV_8UC1, 255 / (ndisparities*16.0));
-	imshow("disp8U", disp8U);
 }
 
 bool readMats(){
@@ -344,9 +318,15 @@ bool readMats(){
 }
 
 void preProc() {
-	//Double contrast of input imgs to disp map
+	//Cropping to ROI size
+	cimgL = cimgL(newRoi);
+	cimgR = cimgR(newRoi);
+
+	//Convert to Grayscale
 	cvtColor(cimgL, crL, COLOR_BGR2GRAY);
 	cvtColor(cimgR, crR, COLOR_BGR2GRAY);
+
+	//Double contrast to improve disp. performance
 	crL.convertTo(crL, -1, 2, 0);
 	crR.convertTo(crR, -1, 2, 0);
 }
@@ -369,8 +349,6 @@ void postProc (){
 
 
 int main(int argc, char** argv) {
-	if (!calibrated)
-		//Call calibrator
 
 	if (argc == 0) {
 		cout << "Not enough arguments" << endl;
@@ -384,19 +362,21 @@ int main(int argc, char** argv) {
 	//Read in intrinsic and extrinsic matrices from calibration	
 	if (!readMats())
 		return false;
+	//Initialize disparity parameters
+	init_sbm();
 
 	if (!webcam) {
-		imgL = imread(imgLfn, IMREAD_GRAYSCALE);
-		imgR = imread(imgRfn, IMREAD_GRAYSCALE);
+		cimgL = imread(imgLfn, IMREAD_COLOR);
+		cimgR = imread(imgRfn, IMREAD_COLOR);
 
-		disp16S = Mat(imgL.rows, imgL.cols, CV_16S);
-		disp8U = Mat(imgL.rows, imgL.cols, CV_8UC1);
+		disp16S = Mat(cimgL.rows, cimgL.cols, CV_16S);
+		disp8U = Mat(cimgL.rows, cimgL.cols, CV_8UC1);
 
-		if (imgL.empty() || imgR.empty()) {
+		if (cimgL.empty() || cimgR.empty()) {
 			cout << "Could not load image";
 			return -1;
 		}
-		imageSize = imgL.size();
+		imageSize = cimgL.size();
 	}
 	else {
 		if (init_PointGrey()) {
@@ -411,18 +391,21 @@ int main(int argc, char** argv) {
 		//Initial read/demosaic
 		rawL = PointGreyCam->get_raw_data();
 		imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
-		cvtColor(imgBayerL, imgL, COLOR_BayerRG2GRAY);
+		cvtColor(imgBayerL, cimgL, COLOR_BayerRG2BGR);
 
 		rawR = PointGreyCam2->get_raw_data();
 		imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
-		cvtColor(imgBayerR, imgR, COLOR_BayerRG2GRAY);
+		cvtColor(imgBayerR, cimgR, COLOR_BayerRG2BGR);
 
-		if (!imgR.empty() && imgL.size() == imgR.size()) //Checks that both cameras are reading in properly
-			imageSize = imgL.size();
+		//Checks that both cameras are reading in properly
+		if (!cimgR.empty() && cimgL.size() == cimgR.size())
+			imageSize = cimgL.size();
 	}
 	
+	//DISPLAYS TRACKBARS
 	//maskingTrackbars();
 	//disparityTrackbars();
+	superPixelTrackbars();
 	threshTrackbars();
 
 	//CALCULATES RECTIFICATION MAP
@@ -472,59 +455,58 @@ int main(int argc, char** argv) {
 		imshow("Combo", H);*/
 		/////////////////////////////////////////////////////////////////////////
 
-		//Cropping to ROI size
-		cimgL = cimgL(newRoi);
-		cimgR = cimgR(newRoi);
-
 		//Readying imgs to find disparity
 		if (preProcess)
 			preProc();
 		
 		//Outputs disparity map to disp8U
-		findDisparity(crL, crR, newRoi, newRoi);
+		findDisparity(crL, crR);
 
+		//threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);	//Close cut-off plane
+		threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);	//Far cut-off plane
 
-		//thresh = disp8U;
-		//threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);
-		//threshold(threshTemp, thresh, FAR_THRESH, 255, 3);	//4 = Threshold to Zero Inverted
-		threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);
-
-		//Superpixels
-		superPixelTrackbars();
+		//Find Superpixels
 		superpixels();
 
-		////////////////////////////////////////////CONTINUE CLEANING CODE FROM HERE///////////////////////////////////////////////////
-
-		////////////Attempts at post processing threshold////////////////
+		//Attempts at post processing threshold
 		if (postProcess)
 			postProc();
-		imshow("Thresh", thresh);
 
 		//MASK
-		maskedL = imgL;
-		maskedR = imgR;
+		maskedL = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
+		maskedR = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
+
 
 		cimgL.copyTo(maskedL, thresh);
 		cimgR.copyTo(maskedR, thresh);
-		//imshow("MaskedL", maskedL);
-		//imshow("MaskedR", maskedR);
+
+		//OUTPUT IMGS
+		if (showDebugImgs) {
+			imshow("disp8U", disp8U);
+			imshow("Superpixels!", superpixelatedImg);
+		}
+		imshow("FilteredImg", filteredImg);
+		waitKey(30);
 
 		//USER INPUT - Saving, Pausing and Ending
 		key = waitKey(1);
-		if (key == ESC_KEY) {	//End Program
+		//End Program
+		if (key == ESC_KEY) {	
 			delete PointGreyCam;
 			delete PointGreyCam2;
 			destroyAllWindows();
 			printf("Ending Program...");
 			break;
 		}
-		else if (key == 's') {	//Save Imgs
+		//Save Imgs
+		else if (key == 's') {
 			printf("Saving...");
 			imwrite("Superpixels.png", superpixelatedImg);
 			imwrite("FilteredImg.png", filteredImg);
 			imwrite("Disp8U.png", disp8U);
 		}
-		else if (key == 'p') {	//Pause Program
+		//Pause Program
+		else if (key == 'p') {
 			if (!paused) {
 				printf("===============================\n");
 				printf("Capture Paused - Press 'p' to continue capturing\n");
@@ -539,38 +521,7 @@ int main(int argc, char** argv) {
 				PointGreyCam2->start_capture();
 				paused = false;
 			}
-			//waitKey(0);
 		}
-		
-		/*
-		char key = waitKey(1);
-		if (key == ESC_KEY) {
-		delete PointGreyCam;
-		delete PointGreyCam2;
-		break;
-		}
-		
-		
-		key = ' ';
-		*/
 	}
-	//imwrite("Disp8U.png", disp8U);
-	//imshow("Disp16S", disp16S);
-
-	//for debugging purposes only//
-	//Mat colour_disp8U;	
-	//applyColorMap(disp8U, colour_disp8U, COLORMAP_RAINBOW);
-	///////////////////////////////
-	//Mat crimgL;
-	//Mat crimgR;
-	//cvtColor(rimgL, crimgL, CV_GRAY2BGR);
-	//imshow("crimgL", crimgL);
-
-
-	//String fn = "MaskedImgLSWAPPED.png";
-	//imwrite(fn, maskedL);
-
-	
-	//waitKey(0);
 	return 0;
 }
