@@ -22,7 +22,7 @@ using namespace cv;
 using namespace std;
 
 #define POINT_GREY_FOV 42.5
-#define POINT_GREY_FPS 15.0
+#define POINT_GREY_FPS 60.0
 #define POINT_GREY_EXPOSURE 16
 #define POINT_GREY_GAIN 10.0
 #define POINT_GREY_WHITE_BALANCE 700, 880
@@ -31,8 +31,9 @@ using namespace std;
 
 /////////////////////GLOBAL VARIABLES//////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
-//Mat imgL;
-//Mat imgR;
+Mat backgroundImg;
+bool useBackground = true;
+
 uchar* rawL;
 uchar* rawR;
 Mat cimgL;
@@ -91,7 +92,8 @@ bool paused = false;
 
 //Depth filtering thresholds
 int CLOSE_THRESH = 255;
-int FAR_THRESH = 42;	//61 works the best
+int FAR_THRESH = 72;	//61 works the best
+int FAR_AVG_THRESH = 82;
 
 Size imageSize;
 
@@ -238,6 +240,7 @@ void threshTrackbars() {
 
 	createTrackbar("CLOSE_THRESH", windowName, &CLOSE_THRESH, 255, NULL);
 	createTrackbar("FAR_THRESH", windowName, &FAR_THRESH, 255, NULL);
+	createTrackbar("FAR_AVG_THRESH", windowName, &FAR_AVG_THRESH, 255, NULL);
 }
 
 void superPixelTrackbars() {
@@ -269,20 +272,24 @@ void superpixels() {
 	//To show the superpixelated img. Only needed for debug purposes//
 	superpixelatedImg = cimgL.clone();
 	superpixelatedImg.setTo(Scalar(0, 255, 0), superpixelEdges);
+	thresh.setTo(Scalar(0, 255, 0), superpixelEdges);
 	//////////////////////////////////////////////////////////////////
 
 	maxLabel = seeds->getNumberOfSuperpixels();
-	filteredImg = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
+	if (!useBackground)
+		filteredImg = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
+	else
+		filteredImg = backgroundImg.clone();
 
 	//Iterates through every superpixel
 	for (int labelNum = 0; labelNum <= maxLabel; labelNum++) {
 
 		//Masks out everything but 1 superpixel at a time
 		labelMask = labels == labelNum;
-		double avg = mean(disp8U, labelMask)[0];
+		double avg = mean(thresh, labelMask)[0];
 
 		//Only copies over superpixels whose avg. on the disp8U image is > thresh
-		if (avg >= FAR_THRESH)
+		if (avg >= FAR_AVG_THRESH)
 			cimgL.copyTo(filteredImg, labelMask);
 	}
 }
@@ -355,9 +362,12 @@ int main(int argc, char** argv) {
 		return -1;
 	}
 
-	CommandLineParser parser(argc, argv, "{w|9|}{h|6|}{s|1.0|}{nr||}{help||}{@input|../data/stereo_calib.xml|}{iL|Images/meL-1meter.png|}{iR|Images/meR-1meter.png|}");
+	CommandLineParser parser(argc, argv, "{w|9|}{h|6|}{s|1.0|}{nr||}{help||}{@input|../data/stereo_calib.xml|}{iL|Images/meL-1meter.png|}{iR|Images/meR-1meter.png|}{background|Images/moonBackground1.jpg|}");
 	String imgLfn = parser.get<string>("iL");
 	String imgRfn = parser.get<string>("iR");
+	String backgroundImgfn = parser.get<string>("background");
+	if (backgroundImgfn == "none")
+		useBackground = false;
 
 	//Read in intrinsic and extrinsic matrices from calibration	
 	if (!readMats())
@@ -414,6 +424,13 @@ int main(int argc, char** argv) {
 	initUndistortRectifyMap(M2, D2, R2, P2, imageSize, CV_16SC2, rmap[1][0], rmap[1][1]);
 
 	newRoi = roiL & roiR;	//Intersection of both ROIs
+
+	/////////////////////Background Img///////////////////////
+	if (useBackground) {
+		backgroundImg = imread(backgroundImgfn, IMREAD_COLOR);
+		backgroundImg = backgroundImg(newRoi);
+	}
+	//////////////////////////////////////////////////////////
 
 	//MAIN LOOP: Read, Demosaic, find Disp, Mask
 	while (true) {
@@ -472,18 +489,19 @@ int main(int argc, char** argv) {
 		if (postProcess)
 			postProc();
 
-		//MASK
-		maskedL = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
-		maskedR = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
-
-
-		cimgL.copyTo(maskedL, thresh);
-		cimgR.copyTo(maskedR, thresh);
-
 		//OUTPUT IMGS
 		if (showDebugImgs) {
 			imshow("disp8U", disp8U);
 			imshow("Superpixels!", superpixelatedImg);
+			imshow("Thresh", thresh);
+
+			//For comparison purposes only
+			//Old version of masking
+			maskedL = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
+			maskedR = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
+			cimgL.copyTo(maskedL, thresh);
+			cimgR.copyTo(maskedR, thresh);
+			imshow("MaskedL", maskedL);
 		}
 		imshow("FilteredImg", filteredImg);
 		waitKey(30);
@@ -501,7 +519,7 @@ int main(int argc, char** argv) {
 		//Save Imgs
 		else if (key == 's') {
 			printf("Saving...");
-			imwrite("Superpixels.png", superpixelatedImg);
+			imwrite("Images/Superpixels.png", superpixelatedImg);
 			imwrite("FilteredImg.png", filteredImg);
 			imwrite("Disp8U.png", disp8U);
 		}
