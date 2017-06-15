@@ -31,8 +31,8 @@ using namespace std;
 
 /////////////////////GLOBAL VARIABLES//////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
-Mat backgroundImg;
-bool useBackground = true;
+Mat fakeBackgroundImg;
+bool useFakeBackground = true;
 
 uchar* rawL;
 uchar* rawR;
@@ -100,7 +100,7 @@ Size imageSize;
 const bool webcam = true;
 const bool postProcess = false;
 const bool preProcess = true;
-const bool showDebugImgs = true;
+const bool showDebugImgs = false;
 
 const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
 const String EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
@@ -276,10 +276,10 @@ void superpixels() {
 	//////////////////////////////////////////////////////////////////
 
 	maxLabel = seeds->getNumberOfSuperpixels();
-	if (!useBackground)
+	if (!useFakeBackground)
 		filteredImg = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
 	else
-		filteredImg = backgroundImg.clone();
+		filteredImg = fakeBackgroundImg.clone();
 
 	//Iterates through every superpixel
 	for (int labelNum = 0; labelNum <= maxLabel; labelNum++) {
@@ -362,12 +362,12 @@ int main(int argc, char** argv) {
 		return -1;
 	}
 
-	CommandLineParser parser(argc, argv, "{w|9|}{h|6|}{s|1.0|}{nr||}{help||}{@input|../data/stereo_calib.xml|}{iL|Images/meL-1meter.png|}{iR|Images/meR-1meter.png|}{background|Images/moonBackground1.jpg|}");
+	CommandLineParser parser(argc, argv, "{w|9|}{h|6|}{s|1.0|}{nr||}{help||}{@input|../data/stereo_calib.xml|}{iL|Images/meL-1meter.png|}{iR|Images/meR-1meter.png|}{fakeBackground|Images/moonBackground1.jpg|}");
 	String imgLfn = parser.get<string>("iL");
 	String imgRfn = parser.get<string>("iR");
-	String backgroundImgfn = parser.get<string>("background");
-	if (backgroundImgfn == "none")
-		useBackground = false;
+	String fakeBackgroundImgfn = parser.get<string>("fakeBackground");
+	if (fakeBackgroundImgfn == "none")
+		useFakeBackground = false;
 
 	//Read in intrinsic and extrinsic matrices from calibration	
 	if (!readMats())
@@ -426,9 +426,9 @@ int main(int argc, char** argv) {
 	newRoi = roiL & roiR;	//Intersection of both ROIs
 
 	/////////////////////Background Img///////////////////////
-	if (useBackground) {
-		backgroundImg = imread(backgroundImgfn, IMREAD_COLOR);
-		backgroundImg = backgroundImg(newRoi);
+	if (useFakeBackground) {
+		fakeBackgroundImg = imread(fakeBackgroundImgfn, IMREAD_COLOR);
+		fakeBackgroundImg = fakeBackgroundImg(newRoi);
 	}
 	//////////////////////////////////////////////////////////
 
@@ -504,10 +504,10 @@ int main(int argc, char** argv) {
 			imshow("MaskedL", maskedL);
 		}
 		imshow("FilteredImg", filteredImg);
-		waitKey(30);
 
 		//USER INPUT - Saving, Pausing and Ending
 		key = waitKey(1);
+		cout << key<<endl;
 		//End Program
 		if (key == ESC_KEY) {	
 			delete PointGreyCam;
@@ -519,9 +519,19 @@ int main(int argc, char** argv) {
 		//Save Imgs
 		else if (key == 's') {
 			printf("Saving...");
-			imwrite("Images/Superpixels.png", superpixelatedImg);
-			imwrite("FilteredImg.png", filteredImg);
-			imwrite("Disp8U.png", disp8U);
+
+			imwrite("DebugImgs/Superpixels.bmp", superpixelatedImg);
+			imwrite("DebugImgs/FilteredImg.bmp", filteredImg);
+			imwrite("DebugImgs/Disp8U.bmp", disp8U);
+			imwrite("DebugImgs/Thresh.bmp", thresh);
+		}
+		else if (key == 'b') {
+			printf("Capturing background...");
+			char* filename = "DebugImgs/background.bmp";
+
+			imshow("CIMGL", cimgL);
+			waitKey(30);
+			imwrite(filename, cimgL);
 		}
 		//Pause Program
 		else if (key == 'p') {
