@@ -33,6 +33,9 @@ using namespace std;
 ///////////////////////////////////////////////////////////////////////////////////////////
 Mat fakeBackgroundImg;
 bool useFakeBackground = true;
+Mat realBackground;
+Mat diff_BG_FG; //differences between the background and the foreground
+bool useRealBackground = false;
 
 uchar* rawL;
 uchar* rawR;
@@ -368,7 +371,10 @@ int main(int argc, char** argv) {
 	String fakeBackgroundImgfn = parser.get<string>("fakeBackground");
 	if (fakeBackgroundImgfn == "none")
 		useFakeBackground = false;
-
+	if (cvHaveImageReader("DebugImgs/background.bmp")) {
+		useRealBackground = true;
+		realBackground = imread("DebugImgs/background.bmp", IMREAD_COLOR);
+	}
 	//Read in intrinsic and extrinsic matrices from calibration	
 	if (!readMats())
 		return false;
@@ -482,6 +488,23 @@ int main(int argc, char** argv) {
 		//threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);	//Close cut-off plane
 		threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);	//Far cut-off plane
 
+		//Use background screenshot to improve disparity map
+		if (useRealBackground) {
+			//cvtColor(realBackground, realBackground, CV_BGR2HSV);
+			//cvtColor(cimgL, cimgL, CV_BGR2HSV);
+
+			absdiff(realBackground, cimgL, diff_BG_FG);
+			//cvtColor(cimgL, cimgL, CV_HSV2BGR);
+			cvtColor(diff_BG_FG, diff_BG_FG, COLOR_BGR2GRAY);
+			threshold(diff_BG_FG, diff_BG_FG, 10, 200, THRESH_BINARY);
+			imshow("thresh-before", thresh);
+			erode(diff_BG_FG, diff_BG_FG, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5,5)));
+			thresh += diff_BG_FG;
+			//thresh = diff_BG_FG.clone();
+			imshow("thresh-after", thresh);
+			imshow("DIFFERENCE", diff_BG_FG);
+		}
+
 		//Find Superpixels
 		superpixels();
 
@@ -532,9 +555,17 @@ int main(int argc, char** argv) {
 
 			imshow("CIMGL", cimgL);
 			waitKey(30);
-			imwrite("DebugImgs/background.bmp", cimgL);
+			realBackground = cimgL;
+			imwrite("DebugImgs/background.bmp", realBackground);
+			useRealBackground = true;
 			break;
 
+		case 't' : //TOGGLES USE REAL BACKGROUND
+			if (useRealBackground)
+				useRealBackground = false;
+			else
+				useRealBackground = true;
+			break;
 		case 'p' :	//PAUSE PROGRAM
 			if (!paused) {
 				printf("===============================\n");
