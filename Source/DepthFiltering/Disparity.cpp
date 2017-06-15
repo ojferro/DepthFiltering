@@ -508,33 +508,34 @@ int main(int argc, char** argv) {
 		//USER INPUT - Saving, Pausing and Ending
 		key = waitKey(1);
 		cout << key<<endl;
-		//End Program
-		if (key == ESC_KEY) {	
+
+		switch (key) {
+		case ESC_KEY:	//END PROGRAM
 			delete PointGreyCam;
 			delete PointGreyCam2;
 			destroyAllWindows();
 			printf("Ending Program...");
+			return 0;
 			break;
-		}
-		//Save Imgs
-		else if (key == 's') {
+
+		case 's' :	//SAVE DEBUG IMAGES
 			printf("Saving...");
 
 			imwrite("DebugImgs/Superpixels.bmp", superpixelatedImg);
 			imwrite("DebugImgs/FilteredImg.bmp", filteredImg);
 			imwrite("DebugImgs/Disp8U.bmp", disp8U);
 			imwrite("DebugImgs/Thresh.bmp", thresh);
-		}
-		else if (key == 'b') {
+			break;
+
+		case 'b' :	//CAPTURE BACKGROUND
 			printf("Capturing background...");
-			char* filename = "DebugImgs/background.bmp";
 
 			imshow("CIMGL", cimgL);
 			waitKey(30);
-			imwrite(filename, cimgL);
-		}
-		//Pause Program
-		else if (key == 'p') {
+			imwrite("DebugImgs/background.bmp", cimgL);
+			break;
+
+		case 'p' :	//PAUSE PROGRAM
 			if (!paused) {
 				printf("===============================\n");
 				printf("Capture Paused - Press 'p' to continue capturing\n");
@@ -549,7 +550,8 @@ int main(int argc, char** argv) {
 				PointGreyCam2->start_capture();
 				paused = false;
 			}
+			break;
 		}
+		//////////////////////////////////////////////////////////User input - end
 	}
-	return 0;
 }
