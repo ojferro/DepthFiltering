@@ -108,7 +108,7 @@ const bool realCameras = false;
 
 const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
 const String EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
-char* PATH_TO_VIDEOS = "Videos/RECT_";
+char* PATH_TO_VIDEOS = "Videos/";
 int MAT_CONVERSION_CHANNELS = CV_8UC1;
 
 //Saving Debug Imgs
@@ -484,12 +484,7 @@ int main(int argc, char** argv) {
         fakeBackgroundImg = fakeBackgroundImg(newRoi);
     }
     //////////////////////////////////////////////////////////
-    VideoCapture cap0(string(PATH_TO_VIDEOS) + "cam0.avi");
-    VideoCapture cap1(string(PATH_TO_VIDEOS) + "cam1.avi");
-    if (!cap0.isOpened() || !cap1.isOpened()) {
-        cout << "Unable to open capture files\n";
-        waitKey(0);
-    }
+   
     //MAIN LOOP: Read, Demosaic, find Disp, Mask
     while (true) {
         if (webcam) {
@@ -504,22 +499,14 @@ int main(int argc, char** argv) {
             ////DEMOSAIC
             imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, MAT_CONVERSION_CHANNELS, rawL, Mat::AUTO_STEP);
             imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, MAT_CONVERSION_CHANNELS, rawR, Mat::AUTO_STEP);
-            //cout << "Bayer size: rows" << FRAME_HEIGHT << ", cols: " << FRAME_WIDTH;
-            imshow("Bayer", imgBayerL);
-            waitKey(30);
 
-            //cap0 >> imgBayerL;
-            //cap1 >> imgBayerR;
-            //cout << imgBayerL.type();
 
             if (imgBayerL.empty() || imgBayerR.empty()) {
                 cout << "End of video file reached. Exiting...\n";
                 waitKey(0);
                 break;
             }
-            //cout << "Channels cimgL:" << cimgL.channels();
-            //cout << "Channel imgBayerL:" << imgBayerL.channels();
-            //cout << "Depth imgBayerL:" << imgBayerL.depth();
+
             if (imgBayerL.channels() == 1) {
                 cvtColor(imgBayerL, cimgL, COLOR_BayerBG2BGR);
                 cvtColor(imgBayerR, cimgR, COLOR_BayerBG2BGR);
@@ -529,8 +516,6 @@ int main(int argc, char** argv) {
                 imgBayerR.copyTo(cimgR);
             }
 
-            imshow("Colour", cimgL);
-            waitKey(30);
         }
         else {
             cimgL = imread(imgLfn, IMREAD_COLOR);
