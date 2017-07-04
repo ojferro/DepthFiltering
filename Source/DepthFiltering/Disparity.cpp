@@ -103,9 +103,20 @@ const bool webcam = true;
 const bool postProcess = false;
 const bool preProcess = true;
 const bool showDebugImgs = true;
+const bool saveDebugImgs = false;
+const bool realCameras = false;
 
 const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
 const String EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
+char* PATH_TO_VIDEOS = "Videos/RECT_";
+int MAT_CONVERSION_CHANNELS = CV_8UC1;
+
+//Saving Debug Imgs
+VideoWriter VWdisp8U;
+VideoWriter VWsuperpixelatedImg;
+VideoWriter VWthresh;
+
+
 //////////////////////Masking Trackbar Variables///////////////////////////////////////////
 int H_MIN = 3;
 int H_MAX = 256;
@@ -139,13 +150,20 @@ Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
 
 int init_PointGrey()
 {
-    GigeManager = new point_grey_camera_manager(true);
+    GigeManager = new point_grey_camera_manager(false);
     int num_cameras = GigeManager->get_num_cameras();
 
     if (num_cameras > 0)
     {
         printf("%d Cameras found. Opening the first one.\n", num_cameras);
-        PointGreyCam = GigeManager->get_cam_from_index(0);
+        if (!realCameras) {
+            PointGreyCam = GigeManager->get_cam_from_index(0, "Videos/");
+            MAT_CONVERSION_CHANNELS = CV_8UC3;
+        }
+        else {
+            PointGreyCam = GigeManager->get_cam_from_index(0);
+            MAT_CONVERSION_CHANNELS = CV_8UC1;
+        }
 
         PointGreyCam->set_auto_exposure(false);
         PointGreyCam->set_frame_rate(POINT_GREY_FPS);
@@ -168,7 +186,13 @@ int init_PointGrey()
     if (num_cameras > 1)
     {
         printf("%d Cameras found. Opening the second one.\n", num_cameras);
-        PointGreyCam2 = GigeManager->get_cam_from_index(1);
+
+        if (!realCameras) {
+            PointGreyCam2 = GigeManager->get_cam_from_index(1, "Videos/");
+        }
+        else {
+            PointGreyCam2 = GigeManager->get_cam_from_index(1);
+        }
 
         PointGreyCam2->set_auto_exposure(false);
         PointGreyCam2->set_frame_rate(POINT_GREY_FPS);
@@ -408,14 +432,33 @@ int main(int argc, char** argv) {
         disp16S = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_16S);
         disp8U = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1);
 
+        PointGreyCam->set_trigger_mode(false);
+        PointGreyCam2->set_trigger_mode(false);
+        
         //Initial read/demosaic
-        rawL = PointGreyCam->get_raw_data_force_update();
-        imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
-        cvtColor(imgBayerL, cimgL, COLOR_BayerRG2BGR);
+        do {
+            rawL = PointGreyCam->get_raw_data_force_update();
+            rawR = PointGreyCam2->get_raw_data_force_update();
+            cout << "READ!\n";
+        } while (!rawL || !rawR);
 
-        rawR = PointGreyCam2->get_raw_data_force_update();
-        imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
-        cvtColor(imgBayerR, cimgR, COLOR_BayerRG2BGR);
+        imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, MAT_CONVERSION_CHANNELS, rawL, Mat::AUTO_STEP);
+        imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, MAT_CONVERSION_CHANNELS, rawR, Mat::AUTO_STEP);
+
+        //imshow("SCARY DATA BAYER", imgBayerL);
+        //waitKey(0);
+
+        if (imgBayerL.channels() == 1) {
+            cvtColor(imgBayerL, cimgL, COLOR_BayerRG2BGR);
+            cvtColor(imgBayerR, cimgR, COLOR_BayerRG2BGR);
+        }
+        else {
+            imgBayerL.copyTo(cimgL);
+            imgBayerR.copyTo(cimgR);
+        }
+
+        imshow("SCARY DATA BGR", cimgL);
+        //waitKey(0);
 
         //Checks that both cameras are reading in properly
         if (!cimgR.empty() && cimgL.size() == cimgR.size())
@@ -441,11 +484,16 @@ int main(int argc, char** argv) {
         fakeBackgroundImg = fakeBackgroundImg(newRoi);
     }
     //////////////////////////////////////////////////////////
-
+    VideoCapture cap0(string(PATH_TO_VIDEOS) + "cam0.avi");
+    VideoCapture cap1(string(PATH_TO_VIDEOS) + "cam1.avi");
+    if (!cap0.isOpened() || !cap1.isOpened()) {
+        cout << "Unable to open capture files\n";
+        waitKey(0);
+    }
     //MAIN LOOP: Read, Demosaic, find Disp, Mask
     while (true) {
         if (webcam) {
-            //READ
+            ////READ
             rawL = PointGreyCam->get_raw_data_force_update();
             rawR = PointGreyCam2->get_raw_data_force_update();
             if (rawL == NULL || rawR == NULL) {
@@ -453,11 +501,36 @@ int main(int argc, char** argv) {
                 waitKey(0);
             }
 
-            //DEMOSAIC
-            imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawL, Mat::AUTO_STEP);
-            imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1, rawR, Mat::AUTO_STEP);
-            cvtColor(imgBayerL, cimgL, COLOR_BayerBG2BGR);
-            cvtColor(imgBayerR, cimgR, COLOR_BayerBG2BGR);
+            ////DEMOSAIC
+            imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, MAT_CONVERSION_CHANNELS, rawL, Mat::AUTO_STEP);
+            imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, MAT_CONVERSION_CHANNELS, rawR, Mat::AUTO_STEP);
+            //cout << "Bayer size: rows" << FRAME_HEIGHT << ", cols: " << FRAME_WIDTH;
+            imshow("Bayer", imgBayerL);
+            waitKey(30);
+
+            //cap0 >> imgBayerL;
+            //cap1 >> imgBayerR;
+            //cout << imgBayerL.type();
+
+            if (imgBayerL.empty() || imgBayerR.empty()) {
+                cout << "End of video file reached. Exiting...\n";
+                waitKey(0);
+                break;
+            }
+            //cout << "Channels cimgL:" << cimgL.channels();
+            //cout << "Channel imgBayerL:" << imgBayerL.channels();
+            //cout << "Depth imgBayerL:" << imgBayerL.depth();
+            if (imgBayerL.channels() == 1) {
+                cvtColor(imgBayerL, cimgL, COLOR_BayerBG2BGR);
+                cvtColor(imgBayerR, cimgR, COLOR_BayerBG2BGR);
+            }
+            else {
+                imgBayerL.copyTo(cimgL);
+                imgBayerR.copyTo(cimgR);
+            }
+
+            imshow("Colour", cimgL);
+            waitKey(30);
         }
         else {
             cimgL = imread(imgLfn, IMREAD_COLOR);
@@ -521,6 +594,7 @@ int main(int argc, char** argv) {
             imshow("disp8U", disp8U);
             imshow("Superpixels!", superpixelatedImg);
             imshow("Thresh", thresh);
+            imshow("cimgL", cimgL);
 
             //For comparison purposes only
             //Old version of masking
@@ -531,6 +605,18 @@ int main(int argc, char** argv) {
             imshow("MaskedL", maskedL);
         }
         imshow("FilteredImg", filteredImg);
+        waitKey(30);
+
+        //SAVE DEBUG IMAGES
+        if (saveDebugImgs) {
+            VWdisp8U.open(string(PATH_TO_VIDEOS) + "disp8U.avi", 0, POINT_GREY_FPS, disp8U.size(), false);
+            VWsuperpixelatedImg.open(string(PATH_TO_VIDEOS) + "Superpixelated.avi", 0, POINT_GREY_FPS, superpixelatedImg.size(), false);
+            VWthresh.open(string(PATH_TO_VIDEOS) + "Thresh.avi", 0, POINT_GREY_FPS, thresh.size(), false);
+
+            VWdisp8U << disp8U;
+            VWsuperpixelatedImg << superpixelatedImg;
+            VWthresh << thresh;
+        }
 
         //USER INPUT - Saving, Pausing and Ending
         key = waitKey(1);
