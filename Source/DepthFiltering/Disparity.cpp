@@ -34,7 +34,7 @@ Mat fakeBackgroundImg;
 bool useFakeBackground = true;
 Mat realBackground;
 Mat diff_BG_FG; //differences between the background and the foreground
-bool useRealBackground = false;
+bool useRealBackground = true;
 
 uchar* rawL;
 uchar* rawR;
@@ -103,7 +103,7 @@ const bool webcam = true;
 const bool postProcess = false;
 const bool preProcess = true;
 const bool showDebugImgs = true;
-const bool saveDebugImgs = false;
+const bool saveDebugImgs = true;
 const bool realCameras = false;
 
 const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
@@ -385,6 +385,19 @@ void postProc (){
     
 }
 
+void endProgram() {
+    VWthresh.release();
+    VWsuperpixelatedImg.release();
+    VWdisp8U.release();
+
+    delete PointGreyCam;
+    delete PointGreyCam2;
+
+    destroyAllWindows();
+
+    printf("Ending Program...");
+    waitKey(0);
+}
 
 int main(int argc, char** argv) {
 
@@ -493,6 +506,8 @@ int main(int argc, char** argv) {
             rawR = PointGreyCam2->get_raw_data_force_update();
             if (rawL == NULL || rawR == NULL) {
                 cout << "Failed to read raw";
+                endProgram();
+                break;
                 waitKey(0);
             }
 
@@ -609,10 +624,7 @@ int main(int argc, char** argv) {
 
         switch (key) {
         case ESC_KEY:    //END PROGRAM
-            delete PointGreyCam;
-            delete PointGreyCam2;
-            destroyAllWindows();
-            printf("Ending Program...");
+            endProgram();
             return 0;
             break;
 
@@ -660,4 +672,11 @@ int main(int argc, char** argv) {
         }
         //////////////////////////////////////////////////////////User input - end
     }
+    cout << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
+         << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
+         << "\n~~~~~~~~~~~~~~~~~~~~~~~~END OF PROGRAM~~~~~~~~~~~~~~~~~~~~~"
+         << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
+         << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
+         << "\nExiting...";
+    Sleep (3000);
 }
