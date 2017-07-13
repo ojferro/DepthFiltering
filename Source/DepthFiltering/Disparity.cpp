@@ -68,6 +68,7 @@ Mat crR;
 Mat maskedL;
 Mat maskedR;
 Mat thresh;
+Mat thresh_3D;
 Mat threshTemp;
 
 //3D reprojection
@@ -366,8 +367,8 @@ void findDisparity(Mat Limg, Mat Rimg) {
     disp8U_crop = disp8U(crop1);
     disp8U_2_crop = disp8U_2(crop2);
     absdiff(disp8U_crop, disp8U_2_crop, diff);
-    imshow("DIFF", diff);
-    waitKey(30);
+    //imshow("DIFF", diff);
+    //waitKey(30);
 }
 
 bool readMats(){
@@ -534,9 +535,6 @@ int main(int argc, char** argv) {
         imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, MAT_CONVERSION_CHANNELS, rawL, Mat::AUTO_STEP);
         imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, MAT_CONVERSION_CHANNELS, rawR, Mat::AUTO_STEP);
 
-        //imshow("SCARY DATA BAYER", imgBayerL);
-        //waitKey(0);
-
         if (imgBayerL.channels() == 1) {
             cvtColor(imgBayerL, cimgL, COLOR_BayerRG2BGR);
             cvtColor(imgBayerR, cimgR, COLOR_BayerRG2BGR);
@@ -545,9 +543,6 @@ int main(int argc, char** argv) {
             imgBayerL.copyTo(cimgL);
             imgBayerR.copyTo(cimgR);
         }
-
-        imshow("SCARY DATA BGR", cimgL);
-        //waitKey(0);
 
         //Checks that both cameras are reading in properly
         if (!cimgR.empty() && cimgL.size() == cimgR.size())
@@ -644,7 +639,8 @@ int main(int argc, char** argv) {
         findDisparity(crL, crR);
 
         //threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);    //Close cut-off plane
-        threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_TOZERO);//THRESH_BINARY);// | THRESH_OTSU);    //The far plane is omitted if using OTSU flag
+        threshold(disp8U, thresh_3D, FAR_THRESH, 255, THRESH_TOZERO);//THRESH_BINARY);// | THRESH_OTSU);    //The far plane is omitted if using OTSU flag
+        threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);
 
         //Use background screenshot to improve disparity map
         if (useRealBackground) {
@@ -655,12 +651,12 @@ int main(int argc, char** argv) {
             //cvtColor(cimgL, cimgL, CV_HSV2BGR);
             cvtColor(diff_BG_FG, diff_BG_FG, COLOR_BGR2GRAY);
             threshold(diff_BG_FG, diff_BG_FG, 10, 200, THRESH_BINARY);
-            imshow("thresh-before", thresh);
+            //imshow("thresh-before", thresh);
             erode(diff_BG_FG, diff_BG_FG, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5,5)));
             thresh += diff_BG_FG;
             //thresh = diff_BG_FG.clone();
-            imshow("thresh-after", thresh);
-            imshow("DIFFERENCE", diff_BG_FG);
+            //imshow("thresh-after", thresh);
+            //imshow("DIFFERENCE", diff_BG_FG);
         }
 
         //Find Superpixels
@@ -679,11 +675,11 @@ int main(int argc, char** argv) {
 
             //For comparison purposes only
             //Old version of masking
-            maskedL = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
-            maskedR = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
-            cimgL.copyTo(maskedL, thresh);
-            cimgR.copyTo(maskedR, thresh);
-            imshow("MaskedL", maskedL);
+            //maskedL = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
+            //maskedR = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
+            //cimgL.copyTo(maskedL, thresh);
+            //cimgR.copyTo(maskedR, thresh);
+            //imshow("MaskedL", maskedL);
         }
         imshow("FilteredImg", filteredImg);
         waitKey(30);
@@ -695,37 +691,15 @@ int main(int argc, char** argv) {
             /////////////////////////////////////////////////////////
             printf("Generating point cloud...\n");
 
-            //disp16S.convertTo(disp32f, CV_32FC3);
-            //imshow("DISP32F", disp32f);
-            // waitKey(30);
-            //resize(disp16S, disp16S, Size(324, 258));
-            //resize(maskedL, maskedL, Size(324, 258));
             pointMat = Mat(disp16S.size(), CV_32FC3);
-            //imshow("Disp16S", disp16S);
-            cout << FRAME_WIDTH << "  " << FRAME_HEIGHT << "   "<<disp16S.size()<<"\n";
-            //disp16S.convertTo(disp16S, CV_32FC1);
-            //imshow("DISP32F", disp16S);
 
-            cout << "16s "<<disp16S.size() << "  thresh" << thresh.size()<<"\n";
-            imshow("DISP16S_Before", disp16S);
-            //disp16S.copyTo(disp16S, thresh);
-            //bitwise_and(disp16S, thresh, disp16S);
-            //disp16S = disp16S & thresh;
-            imshow("DISP16S", disp16S);
-            imshow("Thresh", thresh);
-            waitKey(30);
-
-            reprojectImageTo3D(thresh, pointMat, Q, true, -1); //pointMat type: CV_32FC3, pointMat channels: 3
-
-            //pointMat.copyTo(pointMat, thresh);
-            //viz::WCloud cloudWidget = viz::WCloud (pointMat, cimgL);
-
-            if (!alreadyRan) {  //Widgets are automatically refreshed. Only need to be added to a scene once, even if they change.
-                alreadyRan = true;
+            reprojectImageTo3D(thresh_3D, pointMat, Q, true, -1); //pointMat type: CV_32FC3, pointMat channels: 3
 
                 ///////////////////////////////////////////////////////
                 ///////////////////Save Cloud to File//////////////////
                 ofstream cloudFile;
+                std::vector<Vec3b> colour_vector;
+
                 cloudFile.open("NewestPointCloud.obj");
                 for (int row = 0; row < pointMat.size().height; row++)
                 {
@@ -741,6 +715,7 @@ int main(int argc, char** argv) {
                                 << fixed << setprecision(6)
                                 << pointMat.at<Point3f>(row, col).z
                                 << endl;
+                            colour_vector.push_back(cimgL.at<Vec3b>(row, col));
                         }
                     }
                 }
@@ -748,30 +723,33 @@ int main(int argc, char** argv) {
                 ///////////////////////////////////////////////////////
                 ///////////////////////////////////////////////////////
 
-
-                ModelWindow.setBackgroundMeshLab();
-                ModelWindow.showWidget("coosys", viz::WCoordinateSystem());
+                if (!alreadyRan) {  //Widgets are automatically refreshed. Only need to be added to a scene once, even if they change.
+                    alreadyRan = true;
+             
                 /////////////////
-                viz::WCube cube_widget(Point3f(0.5, 0.5, 0.0), Point3f(0.0, 0.0, -0.5), true, viz::Color::white());
-                cube_widget.setRenderingProperty(viz::LINE_WIDTH, 4.0);
-                ModelWindow.showWidget("Cube Widget", cube_widget);
+                //ModelWindow.setBackgroundMeshLab();
+                //ModelWindow.showWidget("coosys", viz::WCoordinateSystem());
+                //viz::WCube cube_widget(Point3f(0.5, 0.5, 0.0), Point3f(0.0, 0.0, -0.5), true, viz::Color::white());
+                //cube_widget.setRenderingProperty(viz::LINE_WIDTH, 4.0);
+                //ModelWindow.showWidget("Cube Widget", cube_widget);
                 /////////////////
 
-                //cloudWidget = viz::WCloud(pointMat, viz::Color::green());
-                //viz::WCloud cloudWidget (pointMat, viz::Color::white());//filteredImg));
-                //cloudWidget.setRenderingProperty(viz::POINT_SIZE, 2);
+                //ModelWindow.showWidget("pointcloud", viz::WCloud::WCloud(pointMat));// cimgL));//cloudWidget);
 
-                ModelWindow.showWidget("pointcloud", viz::WCloud::WCloud(pointMat));// cimgL));//cloudWidget);
+                Mat cloudFromFile = viz::readCloud("NewestPointCloud.obj"); //Read it in as a line matrix
+                Mat colour_thresh = Mat::zeros(cloudFromFile.size(), cimgL.type());
+                colour_thresh = Mat(colour_vector);
 
-                viz::WCloud lizardCloud = viz::WCloud(viz::readCloud("NewestPointCloud.obj"));
-                ModelWindow.showWidget("lizardMage", lizardCloud);
-                lizardCloud.setRenderingProperty(viz::POINT_SIZE, 2);
+                transpose(colour_thresh, colour_thresh);
+
+                viz::WCloud pointCloud = viz::WCloud(cloudFromFile, colour_thresh);// , maskedL);
+                ModelWindow.showWidget("pointCloud", pointCloud);
+                pointCloud.setRenderingProperty(viz::POINT_SIZE, 2);
 
                 ModelWindow.showWidget("text2d", viz::WText("Point cloud", Point(20, 20), 20, viz::Color::green()));
                 viz::writeCloud("PointCloud.ply", pointMat);
             }
 
-            //ModelWindow.spinOnce(30, true);
             ModelWindow.spinOnce(1, true);
             //if (!ModelWindow.wasStopped())
             //    ModelWindow.spinOnce(1, true);
