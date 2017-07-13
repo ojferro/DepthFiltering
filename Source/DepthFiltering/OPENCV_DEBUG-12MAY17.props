@@ -8,7 +8,7 @@
       <AdditionalIncludeDirectories>D:\opencv_root\build_opencv64\install\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>D:\opencv_root\build_opencv64\install\x64\vc14\lib;D:\Interaptix\Vendor\freeglut-3.0.0\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>D:\opencv_root\build_opencv64\lib\Release;D:\Interaptix\Vendor\freeglut-3.0.0\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>opencv_world320.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>

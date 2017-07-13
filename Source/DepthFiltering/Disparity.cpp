@@ -8,6 +8,7 @@
 #include <opencv2/calib3d.hpp>
 #include <stdio.h>
 #include <iostream>
+#include<fstream>
 #include <iomanip>
 #include <opencv2/aruco.hpp>
 #include <opencv2/ximgproc.hpp>
@@ -15,7 +16,8 @@
 #include <opencv2/ximgproc/disparity_filter.hpp>
 #include "point_grey_cam.h"
 #include "point_grey_sim.h"
-
+#include "opencv2/viz.hpp"
+#include "opencv2/viz/widgets.hpp"
 
 using namespace cv;
 using namespace std;
@@ -34,7 +36,7 @@ Mat fakeBackgroundImg;
 bool useFakeBackground = true;
 Mat realBackground;
 Mat diff_BG_FG; //differences between the background and the foreground
-bool useRealBackground = true;
+bool useRealBackground = false;
 
 uchar* rawL;
 uchar* rawR;
@@ -68,6 +70,15 @@ Mat maskedR;
 Mat thresh;
 Mat threshTemp;
 
+//3D reprojection
+FileStorage PointWriter("point_cloud.yml", FileStorage::WRITE);
+Mat pointMat;
+Mat disp32f;
+viz::Viz3d ModelWindow("Point cloud with colour");
+//viz::WCloud cloudWidget(Mat::zeros(865, 1160, CV_32FC3), viz::Color::green());
+bool show3D = true;
+bool alreadyRan = false;
+
 //For Superpixels/////////
 int numSuperpixels = 500;
 int numLevels = 4;
@@ -100,10 +111,10 @@ int FAR_AVG_THRESH = 82;
 Size imageSize;
 
 const bool webcam = true;
-const bool postProcess = false;
+bool postProcess = false;
 const bool preProcess = true;
 const bool showDebugImgs = true;
-const bool saveDebugImgs = true;
+const bool saveDebugImgs = false;
 const bool realCameras = false;
 
 const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
@@ -291,7 +302,7 @@ void superPixelTrackbars() {
 ////////////////////////////////////////////////////////////
 
 void superpixels() {
-    seeds = ximgproc::createSuperpixelSLIC(cimgL, ximgproc::SLIC, regionSize, ruler);
+    seeds = ximgproc::createSuperpixelSLIC(cimgL, ximgproc::SLIC, ((regionSize>0) ? regionSize : regionSize + 1), ruler);
     //seeds->enforceLabelConnectivity(1);
     
     cout << "Starting iterations" << endl;
@@ -303,7 +314,6 @@ void superpixels() {
     //To show the superpixelated img. Only needed for debug purposes//
     superpixelatedImg = cimgL.clone();
     superpixelatedImg.setTo(Scalar(0, 255, 0), superpixelEdges);
-    thresh.setTo(Scalar(0, 255, 0), superpixelEdges);
     //////////////////////////////////////////////////////////////////
 
     maxLabel = seeds->getNumberOfSuperpixels();
@@ -327,8 +337,37 @@ void superpixels() {
 
 void findDisparity(Mat Limg, Mat Rimg) {
     //Parameters are set by calling init_sbm()
+    //sbm->setMinDisparity(-minDisparity);
     sbm->compute(Limg, Rimg, disp16S);
+
+    ///////////////////////////////
+    Mat disp16S_2, disp8U_2, diff;
+   /* Mat disp8U_orig, disp8U_2_orig;*/
+    Mat disp8U_crop, disp8U_2_crop;
+
+    cv::flip(Limg, Limg, 1);
+    cv::flip(Rimg, Rimg, 1);
+
+
+    sbm->compute(Rimg, Limg, disp16S_2);
+
+    cv::flip(disp16S_2, disp16S_2, 1);
+    //absdiff(disp16S, disp16S, diff);
+
+    //imshow("DIFF", diff);
+
+    //sbm->setMinDisparity(-minDisparity);
+    //sbm->compute(Rimg, Limg, disp16S);
     disp16S.convertTo(disp8U, CV_8UC1, 255 / (ndisparities*16.0));
+    disp16S_2.convertTo(disp8U_2, CV_8UC1, 255 / (ndisparities*16.0));
+    //imshow("disp8U_2", disp8U_2);
+    Rect crop1 = Rect(63, 0, disp8U.cols-63-68, disp8U.rows);
+    Rect crop2 = Rect(ndisparities, 0, disp8U_2.cols - 63 - 68, disp8U_2.rows);
+    disp8U_crop = disp8U(crop1);
+    disp8U_2_crop = disp8U_2(crop2);
+    absdiff(disp8U_crop, disp8U_2_crop, diff);
+    imshow("DIFF", diff);
+    waitKey(30);
 }
 
 bool readMats(){
@@ -364,9 +403,17 @@ void preProc() {
     cvtColor(cimgL, crL, COLOR_BGR2GRAY);
     cvtColor(cimgR, crR, COLOR_BGR2GRAY);
 
+    GaussianBlur(crL, crL, Size(3, 3), 0, 0, BORDER_DEFAULT);
+    GaussianBlur(crR, crR, Size(3, 3), 0, 0, BORDER_DEFAULT);
+    
+    equalizeHist(crL, crL);
+    equalizeHist(crR, crR);
+
+    imshow("Eq", crL);
+
     //Double contrast to improve disp. performance
-    crL.convertTo(crL, -1, 2, 0);
-    crR.convertTo(crR, -1, 2, 0);
+    //crL.convertTo(crL, -1, 2, 0);
+    //crR.convertTo(crR, -1, 2, 0);
 }
 
 void postProc (){
@@ -385,10 +432,39 @@ void postProc (){
     
 }
 
+void drawPointCloud() {
+
+    //printf("Generating point cloud...\n");
+
+    //disp16S.convertTo(disp32f, CV_32FC3);
+
+    //reprojectImageTo3D(disp32f, pointMat, Q, true, -1); //pointMat type: CV_32FC3, pointMat channels: 3
+
+    ////pointMat.copyTo(pointMat, thresh);
+    ////viz::WCloud cloudWidget = viz::WCloud (pointMat, cimgL);
+
+    //if (!alreadyRan) {
+    //    alreadyRan = true;
+    //    ModelWindow.setBackgroundMeshLab();
+    //    cloudWidget = viz::WCloud(pointMat, viz::Color::green());
+    //    cloudWidget.setRenderingProperty(viz::POINT_SIZE, 2);
+
+    //    ModelWindow.showWidget("coosys", viz::WCoordinateSystem());
+    //    ModelWindow.showWidget("pointcloud", cloudWidget);//filteredImg));
+    //    ModelWindow.showWidget("text2d", viz::WText("Point cloud", Point(20, 20), 20, viz::Color::green()));
+    //}
+
+    //if (!ModelWindow.wasStopped())
+    //    ModelWindow.spinOnce(1, true);
+    //printf("\nShowing Pt. Cloud\n");
+
+}
+
 void endProgram() {
     VWthresh.release();
     VWsuperpixelatedImg.release();
     VWdisp8U.release();
+    ModelWindow.close();
 
     delete PointGreyCam;
     delete PointGreyCam2;
@@ -480,7 +556,7 @@ int main(int argc, char** argv) {
     
     //DISPLAYS TRACKBARS
     //maskingTrackbars();
-    //disparityTrackbars();
+    disparityTrackbars();
     superPixelTrackbars();
     threshTrackbars();
 
@@ -498,6 +574,11 @@ int main(int argc, char** argv) {
     }
     //////////////////////////////////////////////////////////
    
+    //disp16S.convertTo(disp32f, CV_32FC3);
+    //
+    //reprojectImageTo3D(disp32f, pointMat, Q, true, -1); //pointMat type: CV_32FC3, pointMat channels: 3
+    //cloudWidget = viz::WCloud(pointMat, viz::Color::green());
+
     //MAIN LOOP: Read, Demosaic, find Disp, Mask
     while (true) {
         if (webcam) {
@@ -563,7 +644,7 @@ int main(int argc, char** argv) {
         findDisparity(crL, crR);
 
         //threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);    //Close cut-off plane
-        threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);    //Far cut-off plane
+        threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_TOZERO);//THRESH_BINARY);// | THRESH_OTSU);    //The far plane is omitted if using OTSU flag
 
         //Use background screenshot to improve disparity map
         if (useRealBackground) {
@@ -607,6 +688,98 @@ int main(int argc, char** argv) {
         imshow("FilteredImg", filteredImg);
         waitKey(30);
 
+        if (show3D) {
+            //show3D = false;
+            drawPointCloud();
+
+            /////////////////////////////////////////////////////////
+            printf("Generating point cloud...\n");
+
+            //disp16S.convertTo(disp32f, CV_32FC3);
+            //imshow("DISP32F", disp32f);
+            // waitKey(30);
+            //resize(disp16S, disp16S, Size(324, 258));
+            //resize(maskedL, maskedL, Size(324, 258));
+            pointMat = Mat(disp16S.size(), CV_32FC3);
+            //imshow("Disp16S", disp16S);
+            cout << FRAME_WIDTH << "  " << FRAME_HEIGHT << "   "<<disp16S.size()<<"\n";
+            //disp16S.convertTo(disp16S, CV_32FC1);
+            //imshow("DISP32F", disp16S);
+
+            cout << "16s "<<disp16S.size() << "  thresh" << thresh.size()<<"\n";
+            imshow("DISP16S_Before", disp16S);
+            //disp16S.copyTo(disp16S, thresh);
+            //bitwise_and(disp16S, thresh, disp16S);
+            //disp16S = disp16S & thresh;
+            imshow("DISP16S", disp16S);
+            imshow("Thresh", thresh);
+            waitKey(30);
+
+            reprojectImageTo3D(thresh, pointMat, Q, true, -1); //pointMat type: CV_32FC3, pointMat channels: 3
+
+            //pointMat.copyTo(pointMat, thresh);
+            //viz::WCloud cloudWidget = viz::WCloud (pointMat, cimgL);
+
+            if (!alreadyRan) {  //Widgets are automatically refreshed. Only need to be added to a scene once, even if they change.
+                alreadyRan = true;
+
+                ///////////////////////////////////////////////////////
+                ///////////////////Save Cloud to File//////////////////
+                ofstream cloudFile;
+                cloudFile.open("NewestPointCloud.obj");
+                for (int row = 0; row < pointMat.size().height; row++)
+                {
+                    for (int col = 0; col < pointMat.size().width; col++)
+                    {
+                        if (pointMat.at<Point3f>(row, col).x < 1000 && pointMat.at<Point3f>(row, col).y < 1000 && pointMat.at<Point3f>(row, col).z < 1000) {
+                            cloudFile
+                                << "v "
+                                << fixed << setprecision(6)
+                                << pointMat.at<Point3f>(row, col).x << " "
+                                << fixed << setprecision(6)
+                                << pointMat.at<Point3f>(row, col).y << " "
+                                << fixed << setprecision(6)
+                                << pointMat.at<Point3f>(row, col).z
+                                << endl;
+                        }
+                    }
+                }
+                cloudFile.close();
+                ///////////////////////////////////////////////////////
+                ///////////////////////////////////////////////////////
+
+
+                ModelWindow.setBackgroundMeshLab();
+                ModelWindow.showWidget("coosys", viz::WCoordinateSystem());
+                /////////////////
+                viz::WCube cube_widget(Point3f(0.5, 0.5, 0.0), Point3f(0.0, 0.0, -0.5), true, viz::Color::white());
+                cube_widget.setRenderingProperty(viz::LINE_WIDTH, 4.0);
+                ModelWindow.showWidget("Cube Widget", cube_widget);
+                /////////////////
+
+                //cloudWidget = viz::WCloud(pointMat, viz::Color::green());
+                //viz::WCloud cloudWidget (pointMat, viz::Color::white());//filteredImg));
+                //cloudWidget.setRenderingProperty(viz::POINT_SIZE, 2);
+
+                ModelWindow.showWidget("pointcloud", viz::WCloud::WCloud(pointMat));// cimgL));//cloudWidget);
+
+                viz::WCloud lizardCloud = viz::WCloud(viz::readCloud("NewestPointCloud.obj"));
+                ModelWindow.showWidget("lizardMage", lizardCloud);
+                lizardCloud.setRenderingProperty(viz::POINT_SIZE, 2);
+
+                ModelWindow.showWidget("text2d", viz::WText("Point cloud", Point(20, 20), 20, viz::Color::green()));
+                viz::writeCloud("PointCloud.ply", pointMat);
+            }
+
+            //ModelWindow.spinOnce(30, true);
+            ModelWindow.spinOnce(1, true);
+            //if (!ModelWindow.wasStopped())
+            //    ModelWindow.spinOnce(1, true);
+            printf("\nShowing Pt. Cloud\n");
+            /////////////////////////////////////////////////////////
+        }
+        //ModelWindow.spinOnce(30);
+
         //SAVE DEBUG IMAGES
         if (saveDebugImgs) {
             VWdisp8U.open(string(PATH_TO_VIDEOS) + "disp8U.avi", 0, POINT_GREY_FPS, disp8U.size(), false);
@@ -619,8 +792,7 @@ int main(int argc, char** argv) {
         }
 
         //USER INPUT - Saving, Pausing and Ending
-        key = waitKey(1);
-        cout << key<<endl;
+        key = waitKey(2);
 
         switch (key) {
         case ESC_KEY:    //END PROGRAM
@@ -628,13 +800,17 @@ int main(int argc, char** argv) {
             return 0;
             break;
 
-        case 's' :    //SAVE DEBUG IMAGES
-            printf("Saving...");
+        case 's' :    //STEP THROUGH PAUSED VIDEO
+            printf("Stepping into next frame...");
+            PointGreyCam->start_capture();
+            PointGreyCam2->start_capture();
 
-            imwrite("DebugImgs/Superpixels.bmp", superpixelatedImg);
-            imwrite("DebugImgs/FilteredImg.bmp", filteredImg);
-            imwrite("DebugImgs/Disp8U.bmp", disp8U);
-            imwrite("DebugImgs/Thresh.bmp", thresh);
+            rawL = PointGreyCam->get_raw_data_force_update();
+            rawR = PointGreyCam2->get_raw_data_force_update();
+
+            PointGreyCam->stop_capture();
+            PointGreyCam2->stop_capture();
+            
             break;
 
         case 'b' :    //CAPTURE BACKGROUND
@@ -645,6 +821,52 @@ int main(int argc, char** argv) {
             realBackground = cimgL;
             imwrite("DebugImgs/background.bmp", realBackground);
             useRealBackground = true;
+            break;
+
+        case 'c' :  //GENERATES POINT CLOUD
+            if (show3D) {
+                show3D = false;
+                printf("show3D is now false");
+            }
+            else {
+                show3D = true;
+                printf("show3D is now true");
+            }
+            /*printf("Generating point cloud...\n");
+
+            disp8U.convertTo(disp32f, CV_32FC1);
+
+            reprojectImageTo3D(disp32f, pointMat, Q, true, -1);
+
+            pointMat.copyTo(pointMat, thresh);
+            
+            ModelWindow.setBackgroundMeshLab();
+            ModelWindow.showWidget("coosys", viz::WCoordinateSystem());
+            ModelWindow.showWidget("pointcloud", viz::WCloud(pointMat, filteredImg));
+            ModelWindow.showWidget("text2d", viz::WText("Point cloud", Point(20, 20), 20, viz::Color::green()));
+            ModelWindow.spinOnce(30);
+            printf("\nShowing Pt. Cloud\n");*/
+           
+            if (PointWriter.isOpened() && !pointMat.empty()) {
+                //cout << "Channels: " << pointMat.channels();
+                //PointWriter << "PointMat" << pointMat;
+                //imwrite("pointMat.jpg", pointMat);
+
+                /*for (int col = 0; col < pointMat.cols; col++) {
+                    for (int row = 0; row < pointMat.rows; row++) {
+                        pointMat
+                    }
+                }*/
+
+                cout << "DID NOT SAVE THIS IS EMPTY!!!\n";
+            }
+            else {
+                printf("Unable to open PointWriter file || pointMat is empty\n");
+                break;
+            }
+            //cout << pointMat;
+            PointWriter.release();
+            printf("Point cloud has been saved!\n");
             break;
 
         case 't' : //TOGGLES USE REAL BACKGROUND
