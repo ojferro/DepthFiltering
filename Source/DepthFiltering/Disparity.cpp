@@ -76,6 +76,7 @@ FileStorage PointWriter("point_cloud.yml", FileStorage::WRITE);
 Mat pointMat;
 Mat disp32f;
 viz::Viz3d ModelWindow("Point cloud with colour");
+//viz::WCloud pointCloud = Mat(1,1,;
 //viz::WCloud cloudWidget(Mat::zeros(865, 1160, CV_32FC3), viz::Color::green());
 bool show3D = true;
 bool alreadyRan = false;
@@ -112,7 +113,7 @@ int FAR_AVG_THRESH = 82;
 Size imageSize;
 
 const bool webcam = true;
-bool postProcess = false;
+bool postProcess = true;
 const bool preProcess = true;
 const bool showDebugImgs = true;
 const bool saveDebugImgs = false;
@@ -396,9 +397,6 @@ bool readMats(){
 }
 
 void preProc() {
-    //Cropping to ROI size
-    cimgL = cimgL(newRoi);
-    cimgR = cimgR(newRoi);
 
     //Convert to Grayscale
     cvtColor(cimgL, crL, COLOR_BGR2GRAY);
@@ -418,6 +416,9 @@ void preProc() {
 }
 
 void postProc (){
+    imshow("BEFOREBEFORE", disp16S);
+    filterSpeckles(disp16S, 0, 5, 4);
+    imshow("AFTERAFTER", disp16S);
     //Mat temp, kernel;
     /*erode(thresh, temp, kernel);
     dilate(temp, thresh, kernel);*/
@@ -607,17 +608,26 @@ int main(int argc, char** argv) {
                 imgBayerR.copyTo(cimgR);
             }
 
+            remap(cimgL, cimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
+            remap(cimgR, cimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
+
+            //Cropping to ROI size
+            cimgL = cimgL(newRoi);
+            cimgR = cimgR(newRoi);
+
         }
         else {
             cimgL = imread(imgLfn, IMREAD_COLOR);
             cimgR = imread(imgRfn, IMREAD_COLOR);
+            imshow("L", cimgL);
+            waitKey(30);
         }
     
 
         //FIND DISPARITY
-        remap(cimgL, cimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
-        remap(cimgR, cimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
 
+        imshow("L", cimgL);
+        waitKey(30);
         ////////////Displaying Rectified Images side by side (debugging)/////////
         /*Mat H;
         hconcat(cimgL, cimgR, H);
@@ -695,11 +705,40 @@ int main(int argc, char** argv) {
 
             reprojectImageTo3D(thresh_3D, pointMat, Q, true, -1); //pointMat type: CV_32FC3, pointMat channels: 3
 
+            //////////////////////////////////////////////
+            //Split
+            //std::vector<Vec3b> colour_vector;
+            //std::vector<Mat> separateChannels(3);// = { Mat::zeros(pointMat.size(), pointMat.type()), Mat::zeros(pointMat.size(), pointMat.type()), Mat::zeros(pointMat.size(), pointMat.type()) };
+            //Mat* separateChannels;
+            //Mat separateChannels [3];
+
+            //cout << pointMat.empty() << "  " << pointMat.size() << "  " << pointMat.channels();
+
+            //split(pointMat, separateChannels);
+            std::vector<Point3f> filteredPoints;
+            Mat invalidPointMask;
+            //std::vector<Point> invalidPoints;
+            //checkRange(pointMat, true, invalidPoints, -1000, 1000);
+
+            invalidPointMask = abs(pointMat) > 1000;
+            //invalidPointMask = invalidPointMask ? 0 : 1;
+            imshow("Inv Pts", invalidPointMask);
+            waitKey(30);
+            //pointMat.copyTo(filteredPoints, invalidPointMask);
+            cimgL.copyTo(cimgL, invalidPointMask);
+            imshow("CimgL", cimgL);
+            waitKey(30);
+
+            //Threshold
+            //threshold(separateChannels[0], separateChannels[0], 1000, 0, 
+
+            //Merge
+
                 ///////////////////////////////////////////////////////
                 ///////////////////Save Cloud to File//////////////////
                 ofstream cloudFile;
                 std::vector<Vec3b> colour_vector;
-
+                
                 cloudFile.open("NewestPointCloud.obj");
                 for (int row = 0; row < pointMat.size().height; row++)
                 {
@@ -728,13 +767,15 @@ int main(int argc, char** argv) {
              
                 /////////////////
                 //ModelWindow.setBackgroundMeshLab();
-                //ModelWindow.showWidget("coosys", viz::WCoordinateSystem());
+                ModelWindow.showWidget("coosys", viz::WCoordinateSystem());
                 //viz::WCube cube_widget(Point3f(0.5, 0.5, 0.0), Point3f(0.0, 0.0, -0.5), true, viz::Color::white());
                 //cube_widget.setRenderingProperty(viz::LINE_WIDTH, 4.0);
                 //ModelWindow.showWidget("Cube Widget", cube_widget);
                 /////////////////
 
-                //ModelWindow.showWidget("pointcloud", viz::WCloud::WCloud(pointMat));// cimgL));//cloudWidget);
+                ModelWindow.showWidget("pointcloud", viz::WCloud(pointMat));// cimgL));//cloudWidget);
+                //ModelWindow.resetCameraViewpoint("coosys");
+                //ModelWindow.resetCameraViewpoint("coosys");
 
                 Mat cloudFromFile = viz::readCloud("NewestPointCloud.obj"); //Read it in as a line matrix
                 Mat colour_thresh = Mat::zeros(cloudFromFile.size(), cimgL.type());
@@ -743,12 +784,14 @@ int main(int argc, char** argv) {
                 transpose(colour_thresh, colour_thresh);
 
                 viz::WCloud pointCloud = viz::WCloud(cloudFromFile, colour_thresh);// , maskedL);
+                cout << cloudFromFile.type();
+
                 ModelWindow.showWidget("pointCloud", pointCloud);
-                pointCloud.setRenderingProperty(viz::POINT_SIZE, 2);
+                pointCloud.setRenderingProperty(viz::POINT_SIZE, 1);
 
                 ModelWindow.showWidget("text2d", viz::WText("Point cloud", Point(20, 20), 20, viz::Color::green()));
                 viz::writeCloud("PointCloud.ply", pointMat);
-            }
+                }
 
             ModelWindow.spinOnce(1, true);
             //if (!ModelWindow.wasStopped())
@@ -810,20 +853,6 @@ int main(int argc, char** argv) {
                 show3D = true;
                 printf("show3D is now true");
             }
-            /*printf("Generating point cloud...\n");
-
-            disp8U.convertTo(disp32f, CV_32FC1);
-
-            reprojectImageTo3D(disp32f, pointMat, Q, true, -1);
-
-            pointMat.copyTo(pointMat, thresh);
-            
-            ModelWindow.setBackgroundMeshLab();
-            ModelWindow.showWidget("coosys", viz::WCoordinateSystem());
-            ModelWindow.showWidget("pointcloud", viz::WCloud(pointMat, filteredImg));
-            ModelWindow.showWidget("text2d", viz::WText("Point cloud", Point(20, 20), 20, viz::Color::green()));
-            ModelWindow.spinOnce(30);
-            printf("\nShowing Pt. Cloud\n");*/
            
             if (PointWriter.isOpened() && !pointMat.empty()) {
                 //cout << "Channels: " << pointMat.channels();
