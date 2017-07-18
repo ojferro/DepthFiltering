@@ -460,6 +460,125 @@ void drawPointCloud() {
     //    ModelWindow.spinOnce(1, true);
     //printf("\nShowing Pt. Cloud\n");
 
+
+    /////////////////////////////////////////////////////////
+    printf("Generating point cloud...\n");
+
+    pointMat = Mat(disp16S.size(), CV_32FC3);
+
+    reprojectImageTo3D(thresh_3D, pointMat, Q, true, -1); //pointMat type: CV_32FC3, pointMat channels: 3
+
+    //////////////////////////////////////////////
+    //Split
+    //std::vector<Vec3b> colour_vector;
+    //std::vector<Mat> separateChannels(3);// = { Mat::zeros(pointMat.size(), pointMat.type()), Mat::zeros(pointMat.size(), pointMat.type()), Mat::zeros(pointMat.size(), pointMat.type()) };
+    //Mat* separateChannels;
+    //Mat separateChannels [3];
+
+    //cout << pointMat.empty() << "  " << pointMat.size() << "  " << pointMat.channels();
+
+    //split(pointMat, separateChannels);
+    std::vector<Point3f> filteredPoints;
+    std::vector<Vec3b> colour_vector;
+    Mat invalidPointMask;
+    //std::vector<Point> invalidPoints;
+    //checkRange(pointMat, true, invalidPoints, -1000, 1000);
+
+    invalidPointMask = abs(pointMat) < 1000;
+    //invalidPointMask = invalidPointMask ? 0 : 1;
+    //imshow("Inv Pts", invalidPointMask);
+    //waitKey(30);
+    //pointMat.copyTo(filteredPoints, invalidPointMask);
+    //cimgL.copyTo(cimgL, invalidPointMask);
+    //imshow("CimgL", cimgL);
+    //waitKey(30);
+
+    //Threshold
+    //threshold(separateChannels[0], separateChannels[0], 1000, 0, 
+
+    //Merge
+
+
+    for (int row = 0; row < pointMat.size().height; row++)
+        {
+            for (int col = 0; col < pointMat.size().width; col++)
+            {
+                if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000 && !viz::isNan(pointMat.at<Point3f>(row, col)) ) {
+                    filteredPoints.push_back(pointMat.at<Point3f>(row, col));
+                    colour_vector.push_back(cimgL.at<Vec3b>(row, col));
+                    //cout << pointMat.at<Point3f>(row, col)<<"\n";
+                }
+            }
+        }
+
+    //cout << filteredPoints.capacity();
+
+    ///////////////////////////////////////////////////////
+    ///////////////////Save Cloud to File//////////////////
+    //ofstream cloudFile;
+    //std::vector<Vec3b> colour_vector;
+    //
+    //cloudFile.open("NewestPointCloud.obj");
+    //for (int row = 0; row < pointMat.size().height; row++)
+    //{
+    //    for (int col = 0; col < pointMat.size().width; col++)
+    //    {
+    //        if (pointMat.at<Point3f>(row, col).x < 1000 && pointMat.at<Point3f>(row, col).y < 1000 && pointMat.at<Point3f>(row, col).z < 1000) {
+    //            cloudFile
+    //                << "v "
+    //                << fixed << setprecision(6)
+    //                << pointMat.at<Point3f>(row, col).x << " "
+    //                << fixed << setprecision(6)
+    //                << pointMat.at<Point3f>(row, col).y << " "
+    //                << fixed << setprecision(6)
+    //                << pointMat.at<Point3f>(row, col).z
+    //                << endl;
+    //            colour_vector.push_back(cimgL.at<Vec3b>(row, col));
+    //        }
+    //    }
+    //}
+    //cloudFile.close();
+    ///////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////
+
+    if (!alreadyRan) {  //Widgets are automatically refreshed. Only need to be added to a scene once, even if they change.
+        alreadyRan = true;
+
+        /////////////////
+        //ModelWindow.setBackgroundMeshLab();
+        ModelWindow.showWidget("coosys", viz::WCoordinateSystem());
+        //viz::WCube cube_widget(Point3f(0.5, 0.5, 0.0), Point3f(0.0, 0.0, -0.5), true, viz::Color::white());
+        //cube_widget.setRenderingProperty(viz::LINE_WIDTH, 4.0);
+        //ModelWindow.showWidget("Cube Widget", cube_widget);
+        /////////////////
+
+        //ModelWindow.showWidget("pointcloud", viz::WCloud(pointMat));// cimgL));//cloudWidget);
+                                                                    //ModelWindow.resetCameraViewpoint("coosys");
+                                                                    //ModelWindow.resetCameraViewpoint("coosys");
+
+        //Mat cloudFromFile = viz::readCloud("NewestPointCloud.obj"); //Read it in as a line matrix
+        Mat colour_thresh;// = Mat::zeros(cloudFromFile.size(), cimgL.type());
+        colour_thresh = Mat(colour_vector);
+        cout<< "\n"<<colour_vector.capacity();
+        //transpose(colour_thresh, colour_thresh);
+        Mat points = Mat(filteredPoints);
+        cout<< points.size() << "  " << colour_thresh.size();
+        viz::WCloud pointCloud = viz::WCloud::WCloud(points, colour_thresh);// , maskedL);
+        //cout << cloudFromFile.type();
+
+        ModelWindow.showWidget("pointCloud", pointCloud);
+        pointCloud.setRenderingProperty(viz::POINT_SIZE, 1);
+
+        ModelWindow.showWidget("text2d", viz::WText("Point cloud", Point(20, 20), 20, viz::Color::green()));
+        viz::writeCloud("PointCloud.ply", pointMat);
+    }
+
+    ModelWindow.spinOnce(1, true);
+    //if (!ModelWindow.wasStopped())
+    //    ModelWindow.spinOnce(1, true);
+    printf("\nShowing Pt. Cloud\n");
+    /////////////////////////////////////////////////////////
+
 }
 
 void endProgram() {
@@ -698,106 +817,7 @@ int main(int argc, char** argv) {
             //show3D = false;
             drawPointCloud();
 
-            /////////////////////////////////////////////////////////
-            printf("Generating point cloud...\n");
-
-            pointMat = Mat(disp16S.size(), CV_32FC3);
-
-            reprojectImageTo3D(thresh_3D, pointMat, Q, true, -1); //pointMat type: CV_32FC3, pointMat channels: 3
-
-            //////////////////////////////////////////////
-            //Split
-            //std::vector<Vec3b> colour_vector;
-            //std::vector<Mat> separateChannels(3);// = { Mat::zeros(pointMat.size(), pointMat.type()), Mat::zeros(pointMat.size(), pointMat.type()), Mat::zeros(pointMat.size(), pointMat.type()) };
-            //Mat* separateChannels;
-            //Mat separateChannels [3];
-
-            //cout << pointMat.empty() << "  " << pointMat.size() << "  " << pointMat.channels();
-
-            //split(pointMat, separateChannels);
-            std::vector<Point3f> filteredPoints;
-            Mat invalidPointMask;
-            //std::vector<Point> invalidPoints;
-            //checkRange(pointMat, true, invalidPoints, -1000, 1000);
-
-            invalidPointMask = abs(pointMat) > 1000;
-            //invalidPointMask = invalidPointMask ? 0 : 1;
-            imshow("Inv Pts", invalidPointMask);
-            waitKey(30);
-            //pointMat.copyTo(filteredPoints, invalidPointMask);
-            cimgL.copyTo(cimgL, invalidPointMask);
-            imshow("CimgL", cimgL);
-            waitKey(30);
-
-            //Threshold
-            //threshold(separateChannels[0], separateChannels[0], 1000, 0, 
-
-            //Merge
-
-                ///////////////////////////////////////////////////////
-                ///////////////////Save Cloud to File//////////////////
-                ofstream cloudFile;
-                std::vector<Vec3b> colour_vector;
-                
-                cloudFile.open("NewestPointCloud.obj");
-                for (int row = 0; row < pointMat.size().height; row++)
-                {
-                    for (int col = 0; col < pointMat.size().width; col++)
-                    {
-                        if (pointMat.at<Point3f>(row, col).x < 1000 && pointMat.at<Point3f>(row, col).y < 1000 && pointMat.at<Point3f>(row, col).z < 1000) {
-                            cloudFile
-                                << "v "
-                                << fixed << setprecision(6)
-                                << pointMat.at<Point3f>(row, col).x << " "
-                                << fixed << setprecision(6)
-                                << pointMat.at<Point3f>(row, col).y << " "
-                                << fixed << setprecision(6)
-                                << pointMat.at<Point3f>(row, col).z
-                                << endl;
-                            colour_vector.push_back(cimgL.at<Vec3b>(row, col));
-                        }
-                    }
-                }
-                cloudFile.close();
-                ///////////////////////////////////////////////////////
-                ///////////////////////////////////////////////////////
-
-                if (!alreadyRan) {  //Widgets are automatically refreshed. Only need to be added to a scene once, even if they change.
-                    alreadyRan = true;
-             
-                /////////////////
-                //ModelWindow.setBackgroundMeshLab();
-                ModelWindow.showWidget("coosys", viz::WCoordinateSystem());
-                //viz::WCube cube_widget(Point3f(0.5, 0.5, 0.0), Point3f(0.0, 0.0, -0.5), true, viz::Color::white());
-                //cube_widget.setRenderingProperty(viz::LINE_WIDTH, 4.0);
-                //ModelWindow.showWidget("Cube Widget", cube_widget);
-                /////////////////
-
-                ModelWindow.showWidget("pointcloud", viz::WCloud(pointMat));// cimgL));//cloudWidget);
-                //ModelWindow.resetCameraViewpoint("coosys");
-                //ModelWindow.resetCameraViewpoint("coosys");
-
-                Mat cloudFromFile = viz::readCloud("NewestPointCloud.obj"); //Read it in as a line matrix
-                Mat colour_thresh = Mat::zeros(cloudFromFile.size(), cimgL.type());
-                colour_thresh = Mat(colour_vector);
-
-                transpose(colour_thresh, colour_thresh);
-
-                viz::WCloud pointCloud = viz::WCloud(cloudFromFile, colour_thresh);// , maskedL);
-                cout << cloudFromFile.type();
-
-                ModelWindow.showWidget("pointCloud", pointCloud);
-                pointCloud.setRenderingProperty(viz::POINT_SIZE, 1);
-
-                ModelWindow.showWidget("text2d", viz::WText("Point cloud", Point(20, 20), 20, viz::Color::green()));
-                viz::writeCloud("PointCloud.ply", pointMat);
-                }
-
-            ModelWindow.spinOnce(1, true);
-            //if (!ModelWindow.wasStopped())
-            //    ModelWindow.spinOnce(1, true);
-            printf("\nShowing Pt. Cloud\n");
-            /////////////////////////////////////////////////////////
+            
         }
         //ModelWindow.spinOnce(30);
 
