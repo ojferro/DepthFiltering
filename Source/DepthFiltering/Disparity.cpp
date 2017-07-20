@@ -464,6 +464,8 @@ void drawPointCloud() {
     /////////////////////////////////////////////////////////
     printf("Generating point cloud...\n");
 
+    threshold(disp8U, thresh_3D, FAR_THRESH, 255, THRESH_TOZERO);
+
     pointMat = Mat(disp16S.size(), CV_32FC3);
 
     reprojectImageTo3D(thresh_3D, pointMat, Q, true, -1); //pointMat type: CV_32FC3, pointMat channels: 3
@@ -480,11 +482,11 @@ void drawPointCloud() {
     //split(pointMat, separateChannels);
     std::vector<Point3f> filteredPoints;
     std::vector<Vec3b> colour_vector;
-    Mat invalidPointMask;
+    //Mat invalidPointMask;
     //std::vector<Point> invalidPoints;
     //checkRange(pointMat, true, invalidPoints, -1000, 1000);
 
-    invalidPointMask = abs(pointMat) < 1000;
+    //invalidPointMask = abs(pointMat) < 1000;
     //invalidPointMask = invalidPointMask ? 0 : 1;
     //imshow("Inv Pts", invalidPointMask);
     //waitKey(30);
@@ -506,7 +508,6 @@ void drawPointCloud() {
                 if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000 && !viz::isNan(pointMat.at<Point3f>(row, col)) ) {
                     filteredPoints.push_back(pointMat.at<Point3f>(row, col));
                     colour_vector.push_back(cimgL.at<Vec3b>(row, col));
-                    //cout << pointMat.at<Point3f>(row, col)<<"\n";
                 }
             }
         }
@@ -570,7 +571,7 @@ void drawPointCloud() {
         pointCloud.setRenderingProperty(viz::POINT_SIZE, 1);
 
         ModelWindow.showWidget("text2d", viz::WText("Point cloud", Point(20, 20), 20, viz::Color::green()));
-        viz::writeCloud("PointCloud.ply", pointMat);
+        //viz::writeCloud("PointCloud.ply", pointMat);
     }
 
     ModelWindow.spinOnce(1, true);
@@ -768,8 +769,7 @@ int main(int argc, char** argv) {
         findDisparity(crL, crR);
 
         //threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);    //Close cut-off plane
-        threshold(disp8U, thresh_3D, FAR_THRESH, 255, THRESH_TOZERO);//THRESH_BINARY);// | THRESH_OTSU);    //The far plane is omitted if using OTSU flag
-        threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);
+        threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);//THRESH_BINARY);// | THRESH_OTSU);    //The far plane is omitted if using OTSU flag
 
         //Use background screenshot to improve disparity map
         if (useRealBackground) {
