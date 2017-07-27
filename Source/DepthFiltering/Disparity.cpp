@@ -16,6 +16,8 @@
 #include <opencv2/ximgproc/disparity_filter.hpp>
 #include "point_grey_cam.h"
 #include "point_grey_sim.h"
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -230,38 +232,80 @@ void display()
     glPushAttrib(GL_ALL_ATTRIB_BITS);
     glPushMatrix();
     /////////////////////////////////////
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glutSwapBuffers();
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
+    //gluOrtho2D(0.0, 400.0, 0.0, 150.0);
+    //gluPerspective(fov, aspect_3D, nearClipping, farClipping);
+    //glViewport(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
+    //glTranslatef(-35 / 2.0, 0,0);
+    //glMultMatrixf(filteredPoints);
 
-    gluLookAt(3, 4, 2, 0, 0, 0, 0, 0, 1);
+    //gluLookAt(3, 4, 2, 0, 0, 0, 0, 0, 1);
+    Mat filteredPointsMat = Mat(filteredPoints);
+
+    float minX = -9999999, maxX = -9999999, minY = -9999999, maxY = -9999999, minZ = -9999999, maxZ = -9999999;
+    float centreX, centreY, centreZ;
+    for (auto i : filteredPoints) {
+        if (i.x > maxX) maxX = i.x;
+        if (i.x < minX) minX = i.x;
+        if (i.y > maxY) maxY = i.y;
+        if (i.y < minY) minY = i.y;
+        if (i.z > maxZ) maxZ = i.z;
+        if (i.z < minZ) minZ = i.z;
+    }
+    cout    << "\n maxX" << maxX
+            <<"\n minX" << minX
+            <<"\n maxY" << maxY
+            <<"\n minY" << minY
+            <<"\n maxZ" << maxZ
+            <<"\n minZ" << minZ;
+
+
+    //maxX  35.4924
+    //minX   - 1e+07
+    //maxY  21.7356
+    //minY   - 1e+07
+    //maxZ  70.1333
+    //minZ   - 1e+07
+
+
+
+    //minMaxLoc(filteredPointsMat , minX, maxX);
+    gluLookAt(maxX/2, maxY/2, maxZ/2, 0, 0, 0, 0, 0, 1);
 
     glPointSize(1.0);
 
     glBegin(GL_POINTS); // render with points
 
+    //for (auto i : colour_vector) {
+    //    glColor3f(i.val[0], i.val[1], i.val[2]);
+    //}
     for (auto i : filteredPoints) {
         glVertex3f(i.x, i.y, i.z);
     }
-    for (auto i : colour_vector) {
-        glColor3f(i.val[0], i.val[1], i.val[2]);
-    }
     //glVertex3f(5.0f, 4.0f, 5.0f); //display a point
-    glEnd();
-    glFlush();
-    glutSwapBuffers();
+    
     /////////////////////////////////////
     glPopMatrix();
     glPopAttrib();
+
+    glEnd();
+    glFlush();
+    //glutSwapBuffers();
+    //glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 void init_openGL(int argc, char** argv) {
     glutInit(&argc, argv);  //Can only be initialised once
 
     glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
-    glutInitWindowPosition(100, 100);
+    glutInitWindowPosition(0, 0);
     glutInitWindowSize(FRAME_WIDTH, FRAME_HEIGHT);
-    glutCreateWindow("0");
+    glutCreateWindow("PointCloud");
 
     //////////////////////////////////////////////////
     //init
@@ -713,6 +757,11 @@ int main(int argc, char** argv) {
     init_sbm();
 
     if (show3D) {
+        if (!glfwInit()) {
+            printf("Failed to initialize GLFW. Ending program");
+            return -1;
+        }
+
         init_openGL(argc, argv);
     }
 
