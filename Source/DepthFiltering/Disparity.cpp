@@ -16,8 +16,11 @@
 #include <opencv2/ximgproc/disparity_filter.hpp>
 #include "point_grey_cam.h"
 #include "point_grey_sim.h"
-#include "opencv2/viz.hpp"
-#include "opencv2/viz/widgets.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+//#include "opencv2/viz.hpp"
+//#include "opencv2/viz/widgets.hpp"
 
 using namespace cv;
 using namespace std;
@@ -75,9 +78,11 @@ Mat threshTemp;
 FileStorage PointWriter("point_cloud.yml", FileStorage::WRITE);
 Mat pointMat;
 Mat disp32f;
-viz::Viz3d ModelWindow("Point cloud with colour");
+//viz::Viz3d ModelWindow("Point cloud with colour");
 //viz::WCloud pointCloud = Mat(1,1,;
 //viz::WCloud cloudWidget(Mat::zeros(865, 1160, CV_32FC3), viz::Color::green());
+std::vector<Point3f> filteredPoints;
+std::vector<Vec3b> colour_vector;
 bool show3D = true;
 bool alreadyRan = false;
 
@@ -219,11 +224,66 @@ int init_PointGrey()
     return 0;
 }
 
+void display()
+{
+
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glPushMatrix();
+    /////////////////////////////////////
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    gluLookAt(3, 4, 2, 0, 0, 0, 0, 0, 1);
+
+    glPointSize(1.0);
+
+    glBegin(GL_POINTS); // render with points
+
+    for (auto i : filteredPoints) {
+        glVertex3f(i.x, i.y, i.z);
+    }
+    for (auto i : colour_vector) {
+        glColor3f(i.val[0], i.val[1], i.val[2]);
+    }
+    //glVertex3f(5.0f, 4.0f, 5.0f); //display a point
+    glEnd();
+    glFlush();
+    glutSwapBuffers();
+    /////////////////////////////////////
+    glPopMatrix();
+    glPopAttrib();
+}
+
+void init_openGL(int argc, char** argv) {
+    glutInit(&argc, argv);  //Can only be initialised once
+
+    glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
+    glutInitWindowPosition(100, 100);
+    glutInitWindowSize(FRAME_WIDTH, FRAME_HEIGHT);
+    glutCreateWindow("0");
+
+    //////////////////////////////////////////////////
+    //init
+    glClearColor(1.0, 1.0, 1.0, 0.0);
+
+    glColor3f(0.0, 1.0, 0.0);
+    glPointSize(1);
+    //glShadeModel(GL_FLAT);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluOrtho2D(0.0, 400.0, 0.0, 150.0);
+    //////////////////////////////////////////////////
+    //reshape
+    glutDisplayFunc(display);
+}
+
 int validateSAD(int sad) {
     if (sad < 5)
         return 5;
     else if (sad % 2 == 0 && sad<255)
         return (sad +1);
+    else if (sad > 255)
     return sad;
 }
 
@@ -434,6 +494,7 @@ void postProc (){
     
 }
 
+
 void drawPointCloud() {
 
     //printf("Generating point cloud...\n");
@@ -480,8 +541,7 @@ void drawPointCloud() {
     //cout << pointMat.empty() << "  " << pointMat.size() << "  " << pointMat.channels();
 
     //split(pointMat, separateChannels);
-    std::vector<Point3f> filteredPoints;
-    std::vector<Vec3b> colour_vector;
+    
     //Mat invalidPointMask;
     //std::vector<Point> invalidPoints;
     //checkRange(pointMat, true, invalidPoints, -1000, 1000);
@@ -505,7 +565,7 @@ void drawPointCloud() {
         {
             for (int col = 0; col < pointMat.size().width; col++)
             {
-                if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000 && !viz::isNan(pointMat.at<Point3f>(row, col)) ) {
+                if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000 ) {
                     filteredPoints.push_back(pointMat.at<Point3f>(row, col));
                     colour_vector.push_back(cimgL.at<Vec3b>(row, col));
                 }
@@ -542,12 +602,12 @@ void drawPointCloud() {
     ///////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////
 
-    if (!alreadyRan) {  //Widgets are automatically refreshed. Only need to be added to a scene once, even if they change.
-        alreadyRan = true;
+    //if (!alreadyRan) {  //Widgets are automatically refreshed. Only need to be added to a scene once, even if they change.
+       // alreadyRan = true;
 
         /////////////////
         //ModelWindow.setBackgroundMeshLab();
-        ModelWindow.showWidget("coosys", viz::WCoordinateSystem());
+        //ModelWindow.showWidget("coosys", viz::WCoordinateSystem());
         //viz::WCube cube_widget(Point3f(0.5, 0.5, 0.0), Point3f(0.0, 0.0, -0.5), true, viz::Color::white());
         //cube_widget.setRenderingProperty(viz::LINE_WIDTH, 4.0);
         //ModelWindow.showWidget("Cube Widget", cube_widget);
@@ -558,27 +618,60 @@ void drawPointCloud() {
                                                                     //ModelWindow.resetCameraViewpoint("coosys");
 
         //Mat cloudFromFile = viz::readCloud("NewestPointCloud.obj"); //Read it in as a line matrix
-        Mat colour_thresh;// = Mat::zeros(cloudFromFile.size(), cimgL.type());
-        colour_thresh = Mat(colour_vector);
-        cout<< "\n"<<colour_vector.capacity();
-        //transpose(colour_thresh, colour_thresh);
-        Mat points = Mat(filteredPoints);
-        cout<< points.size() << "  " << colour_thresh.size();
-        viz::WCloud pointCloud = viz::WCloud::WCloud(points, colour_thresh);// , maskedL);
+        //Mat validColourPoints;// = Mat::zeros(cloudFromFile.size(), cimgL.type());
+        //validColourPoints = Mat(colour_vector);
+        //cout<< "\n"<<colour_vector.capacity();
+        //transpose(validColourPoints, validColourPoints);
+        //Mat points = Mat(filteredPoints);
+        //cout<< points.size() << "  " << validColourPoints.size();
+        //viz::WCloud pointCloud = viz::WCloud::WCloud(points, validColourPoints);// , maskedL);
         //cout << cloudFromFile.type();
 
-        ModelWindow.showWidget("pointCloud", pointCloud);
-        pointCloud.setRenderingProperty(viz::POINT_SIZE, 1);
+        //ModelWindow.showWidget("pointCloud", pointCloud);
+        //pointCloud.setRenderingProperty(viz::POINT_SIZE, 1);
 
-        ModelWindow.showWidget("text2d", viz::WText("Point cloud", Point(20, 20), 20, viz::Color::green()));
+        //ModelWindow.showWidget("text2d", viz::WText("Point cloud", Point(20, 20), 20, viz::Color::green()));
         //viz::writeCloud("PointCloud.ply", pointMat);
-    }
+    //}
 
-    ModelWindow.spinOnce(1, true);
+    //ModelWindow.spinOnce(1, true);
     //if (!ModelWindow.wasStopped())
     //    ModelWindow.spinOnce(1, true);
     printf("\nShowing Pt. Cloud\n");
     /////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////
+
+    //glPushAttrib(GL_ALL_ATTRIB_BITS);
+    //glPushMatrix();
+
+    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    //glMatrixMode(GL_PROJECTION);
+    //glLoadIdentity();
+
+    //gluLookAt(3, 4, 2, 0, 0, 0, 0, 0, 1);
+
+    //glPointSize(2.0);
+
+    //glBegin(GL_POINTS);
+    //for (size_t n = 0; n < filteredPoints.size(); n++) {
+    //    glColor3ub(colour_vector[n].x, colour_vector[n].y, colour_vector[n].z);
+    //    glVertex3f(filteredPoints[n].x, filteredPoints[n].y, filteredPoints[n].z);
+    //}
+    //glEnd();
+
+    //glFlush();
+    ////SDL_GL_SwapBuffers();
+
+    //glPopMatrix();
+    //glPopAttrib();
+
+    //glutMainLoop();
+    display();
+    cout << "Drew Points!!!\n";
+    //////////////////////////////////////////////////
+
 
 }
 
@@ -586,7 +679,6 @@ void endProgram() {
     VWthresh.release();
     VWsuperpixelatedImg.release();
     VWdisp8U.release();
-    ModelWindow.close();
 
     delete PointGreyCam;
     delete PointGreyCam2;
@@ -619,6 +711,10 @@ int main(int argc, char** argv) {
         return false;
     //Initialize disparity parameters
     init_sbm();
+
+    if (show3D) {
+        init_openGL(argc, argv);
+    }
 
     if (!webcam) {
         cimgL = imread(imgLfn, IMREAD_COLOR);
@@ -816,6 +912,13 @@ int main(int argc, char** argv) {
         if (show3D) {
             //show3D = false;
             drawPointCloud();
+
+            //glBegin(GL_POINTS);
+            //glVertex3f(0.0f, 0.0f, 0.0f);
+            //glVertex3f(50.0f, 50.0f, 50.0f);
+            //glEnd();
+
+
 
             
         }

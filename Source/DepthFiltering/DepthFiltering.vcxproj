@@ -104,7 +104,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>D:\opencv_root\opencv\modules\viz\include;D:\opencv_root\opencv_contrib\modules\aruco\include;D:\Interaptix\Vendor\PointGrey\PointGrey;D:\Interaptix\Vendor\GL_Utils\GL_Utils;D:\Interaptix\Vendor\FlyCapture2-2.10.3\include;D:\Interaptix\Vendor\glew-2.0.0\include;D:\Interaptix\Vendor\freeglut-3.0.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\opencv_root\opencv_contrib\modules\aruco\include;D:\Interaptix\Vendor\PointGrey\PointGrey;D:\Interaptix\Vendor\GL_Utils\GL_Utils;D:\Interaptix\Vendor\FlyCapture2-2.10.3\include;D:\Interaptix\Vendor\glew-2.0.0\include;D:\Interaptix\Vendor\freeglut-3.0.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
