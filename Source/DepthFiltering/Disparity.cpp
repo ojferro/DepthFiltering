@@ -1016,6 +1016,10 @@ void reshape(int x, int y) {
     gluPerspective(45, x / y, 0.001f, 100.0f);
 }
 
+void glutIdleFunc(void(*func) (void)) {
+    cout << "Idle...";
+}
+
 void init_openGL(int argc, char** argv) {
 
     glutInit(&argc, argv);  //Can only be initialised once
@@ -1044,6 +1048,9 @@ void init_openGL(int argc, char** argv) {
     //reshape
     glutDisplayFunc(display);
     glutReshapeFunc(reshape);
+    //glutIdleFunc(glutIdleFunc);
+    glutPostRedisplay();
+    glutMainLoop();
 }
 
 
@@ -1077,9 +1084,9 @@ int main(int argc, char** argv) {
     //Initialize disparity parameters
     init_sbm();
 
-    if (show3D) {
-        init_openGL(argc, argv);
-    }
+    //if (show3D) {
+    //    init_openGL(argc, argv);
+    //}
 
     if (!webcam) {
         cimgL = imread(imgLfn, IMREAD_COLOR);
@@ -1161,9 +1168,15 @@ int main(int argc, char** argv) {
     //while (true) {
     //    mainLoop();
     //}
-    while (true) {
-        glutMainLoop();
+
+    if (show3D) {
+        init_openGL(argc, argv);
     }
+    //while (true) {
+    //    glmainLoop();
+    //}
+    //glutMainLoop();
+
     cout << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
          << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
          << "\n~~~~~~~~~~~~~~~~~~~~~~~END OF PROGRAM~~~~~~~~~~~~~~~~~~~~~~"
