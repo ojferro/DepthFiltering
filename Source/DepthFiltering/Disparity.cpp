@@ -76,6 +76,9 @@ Mat thresh;
 Mat thresh_3D;
 Mat threshTemp;
 
+String imgLfn;
+String imgRfn;
+
 //3D reprojection
 FileStorage PointWriter("point_cloud.yml", FileStorage::WRITE);
 Mat pointMat;
@@ -157,6 +160,21 @@ int uniquenessRatio = 1;
 int speckleWindowSize = 12;
 int speckleRange = 256;
 int disp12MaxDiff = 0;
+
+//////////////////////PointCloud Trackbar Variables/////////////////////////////////////////
+//int eyeX = 36 / 2 * 10;
+//int eyeY = 22 / 2 * 10;
+//int eyeZ = 70 / 2 * 10;
+//int centerX= 0 * 10;
+//int centerY= 0 * 10;
+//int centerZ= 0 * 10;
+//int upX    = 0 * 10;
+//int upY    = 0 * 10;
+//int upZ = 1 * 10;
+
+int x = 500, y = 500, z = 500;
+int scale = 1;
+
 ////////////////////////////////Point Grey Cameras/////////////////////////////////////////
 point_grey_camera_manager * GigeManager = 0;
 ICamera * PointGreyCam = 0;
@@ -167,6 +185,21 @@ int FRAME_HEIGHT;
 ///////////////////////////////////////////////////////////////////////////////////////////
 Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
 ///////////////////////////////////////////////////////////////////////////////////////////
+
+void endProgram() {
+    VWthresh.release();
+    VWsuperpixelatedImg.release();
+    VWdisp8U.release();
+
+    delete PointGreyCam;
+    delete PointGreyCam2;
+
+    destroyAllWindows();
+
+    printf("Ending Program...");
+    waitKey(0);
+}
+
 
 int init_PointGrey()
 {
@@ -226,108 +259,36 @@ int init_PointGrey()
     return 0;
 }
 
-void display()
-{
+void mouseCloudControl() {
+    // position
+    glm::vec3 position = glm::vec3(0, 0, 5);
+    // horizontal angle : toward -Z
+    float horizontalAngle = 3.14f;
+    // vertical angle : 0, look at the horizon
+    float verticalAngle = 0.0f;
+    // Initial Field of View
+    float initialFoV = 45.0f;
 
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
-    glPushMatrix();
-    /////////////////////////////////////
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glutSwapBuffers();
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    //gluOrtho2D(0.0, 400.0, 0.0, 150.0);
-    //gluPerspective(fov, aspect_3D, nearClipping, farClipping);
-    //glViewport(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
-    //glTranslatef(-35 / 2.0, 0,0);
-    //glMultMatrixf(filteredPoints);
+    float speed = 3.0f; // 3 units / second
+    float mouseSpeed = 0.005f;
 
-    //gluLookAt(3, 4, 2, 0, 0, 0, 0, 0, 1);
-    Mat filteredPointsMat = Mat(filteredPoints);
+    // Get mouse position
+    double xpos, ypos;
+    //GLFWwindow* window = glfwCreateWindow(FRAME_WIDTH, FRAME_HEIGHT, "Point Cloud New Version", NULL, NULL);
 
-    float minX = -9999999, maxX = -9999999, minY = -9999999, maxY = -9999999, minZ = -9999999, maxZ = -9999999;
-    float centreX, centreY, centreZ;
-    for (auto i : filteredPoints) {
-        if (i.x > maxX) maxX = i.x;
-        if (i.x < minX) minX = i.x;
-        if (i.y > maxY) maxY = i.y;
-        if (i.y < minY) minY = i.y;
-        if (i.z > maxZ) maxZ = i.z;
-        if (i.z < minZ) minZ = i.z;
-    }
-    cout    << "\n maxX" << maxX
-            <<"\n minX" << minX
-            <<"\n maxY" << maxY
-            <<"\n minY" << minY
-            <<"\n maxZ" << maxZ
-            <<"\n minZ" << minZ;
-
-
-    //maxX  35.4924
-    //minX   - 1e+07
-    //maxY  21.7356
-    //minY   - 1e+07
-    //maxZ  70.1333
-    //minZ   - 1e+07
-
-
-
-    //minMaxLoc(filteredPointsMat , minX, maxX);
-    gluLookAt(maxX/2, maxY/2, maxZ/2, 0, 0, 0, 0, 0, 1);
-
-    glPointSize(1.0);
-
-    glBegin(GL_POINTS); // render with points
-
-    //for (auto i : colour_vector) {
-    //    glColor3f(i.val[0], i.val[1], i.val[2]);
-    //}
-    for (auto i : filteredPoints) {
-        glVertex3f(i.x, i.y, i.z);
-    }
-    //glVertex3f(5.0f, 4.0f, 5.0f); //display a point
-    
-    /////////////////////////////////////
-    glPopMatrix();
-    glPopAttrib();
-
-    glEnd();
-    glFlush();
-    //glutSwapBuffers();
-    //glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-}
-
-void init_openGL(int argc, char** argv) {
-    glutInit(&argc, argv);  //Can only be initialised once
-
-    glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
-    glutInitWindowPosition(0, 0);
-    glutInitWindowSize(FRAME_WIDTH, FRAME_HEIGHT);
-    glutCreateWindow("PointCloud");
-
-    //////////////////////////////////////////////////
-    //init
-    glClearColor(1.0, 1.0, 1.0, 0.0);
-
-    glColor3f(0.0, 1.0, 0.0);
-    glPointSize(1);
-    //glShadeModel(GL_FLAT);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluOrtho2D(0.0, 400.0, 0.0, 150.0);
-    //////////////////////////////////////////////////
-    //reshape
-    glutDisplayFunc(display);
+    //glfwGetCursorPos(window, &xpos, &ypos);
+    //glfw::glfwGetMousePos(&xpos, &ypos);
+    // Reset mouse position for next frame
+    //glfwSetCursorPos(window, FRAME_WIDTH / 2.0, FRAME_HEIGHT / 2.0);
 }
 
 int validateSAD(int sad) {
     if (sad < 5)
         return 5;
-    else if (sad % 2 == 0 && sad<255)
-        return (sad +1);
+    else if (sad % 2 == 0 && sad < 255)
+        return (sad + 1);
     else if (sad > 255)
+        return 255;
     return sad;
 }
 
@@ -404,6 +365,28 @@ void superPixelTrackbars() {
     createTrackbar("numIter", windowName, &numIterations, 30, NULL);
     createTrackbar("regionSize", windowName, &regionSize, 200, NULL);
     createTrackbar("ruler", windowName, &ruler, 255, NULL);
+}
+
+void pointCloudTrackbars() {
+    //int numSuperpixels = 500, numLevels = 4, prior = 2, histogramBins = 5, numIterations = 8, maxLabel;
+
+    String windowName = "Pt. Cloud Trackbars";
+
+    namedWindow(windowName, 0);
+    //createTrackbar("eyeX", windowName, &eyeX, 1000, NULL);
+    //createTrackbar("eyeY", windowName, &eyeY, 100, NULL);
+    //createTrackbar("eyeZ", windowName, &eyeZ, 100, NULL);
+    //createTrackbar("centerX", windowName, &centerX, 1000, NULL);
+    //createTrackbar("centerY", windowName, &centerY,1000, NULL);
+    //createTrackbar("centerZ", windowName, &centerZ, 1000, NULL);
+    //createTrackbar("upX", windowName, &upX, 1000, NULL);
+    //createTrackbar("upY", windowName, &upY, 1000, NULL);
+    //createTrackbar("upZ", windowName, &upZ, 1000, NULL);
+
+    createTrackbar("X", windowName, &x, 1000, NULL);
+    createTrackbar("Y", windowName, &y, 1000, NULL);
+    createTrackbar("Z", windowName, &z, 1000, NULL);
+    createTrackbar("Scale", windowName, &scale, 100, NULL);
 }
 ////////////////////////////////////////////////////////////
 
@@ -538,7 +521,6 @@ void postProc (){
     
 }
 
-
 void drawPointCloud() {
 
     //printf("Generating point cloud...\n");
@@ -604,18 +586,29 @@ void drawPointCloud() {
 
     //Merge
 
+    //ofstream of;
+    //of.open("PointCloudFile.txt");
+    //for (int row = 0; row < pointMat.size().height; row++)
+    //    {
+    //        for (int col = 0; col < pointMat.size().width; col++)
+    //        {
+    //            if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000 ) {
+    //                //Point3f pt(pointMat.at<Point3f>(row, col).x, pointMat.at<Point3f>(row, col).y, pointMat.at<Point3f>(row, col).z + 50);
+    //                //filteredPoints.push_back(pt);
+    //                filteredPoints.push_back(pointMat.at<Point3f>(row, col));
+    //                colour_vector.push_back(cimgL.at<Vec3b>(row, col));
+    //                //of << "[" << pointMat.at<Point3f>(row, col).x << ", " << pointMat.at<Point3f>(row, col).y << ", " << pointMat.at<Point3f>(row, col).z << "]\n";
+    //            }
+    //        }
+    //    }
 
-    for (int row = 0; row < pointMat.size().height; row++)
-        {
-            for (int col = 0; col < pointMat.size().width; col++)
-            {
-                if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000 ) {
-                    filteredPoints.push_back(pointMat.at<Point3f>(row, col));
-                    colour_vector.push_back(cimgL.at<Vec3b>(row, col));
-                }
-            }
-        }
 
+    int negatives = 50;
+    filteredPoints.push_back(Point3f((x/10.0+0.5-negatives)*scale, (y/10.0+0-negatives)*scale, (z/10.0+0-negatives)*scale));
+    filteredPoints.push_back(Point3f((x/10.0+0-negatives)*scale, (y/10.0+0-negatives)*scale, (z/10.0+0-negatives)*scale));
+    filteredPoints.push_back(Point3f((x/10.0+0-negatives)*scale, (y/10.0+0.5-negatives)*scale, (z/10.0+0-negatives)*scale));
+    //filteredPoints.push_back(Point3f((x/10.0+0-negatives)*scale, (y/10.0+0-negatives)*scale, (z/10.0+4-negatives)*scale));
+    //of.close();
     //cout << filteredPoints.capacity();
 
     ///////////////////////////////////////////////////////
@@ -712,27 +705,355 @@ void drawPointCloud() {
     //glPopAttrib();
 
     //glutMainLoop();
-    display();
     cout << "Drew Points!!!\n";
     //////////////////////////////////////////////////
-
-
 }
 
-void endProgram() {
-    VWthresh.release();
-    VWsuperpixelatedImg.release();
-    VWdisp8U.release();
+void mainLoop() {
+    if (webcam) {
+        ////READ
+        rawL = PointGreyCam->get_raw_data_force_update();
+        rawR = PointGreyCam2->get_raw_data_force_update();
+        if (rawL == NULL || rawR == NULL) {
+            cout << "Failed to read raw";
+            endProgram();
+            return;
+            waitKey(0);
+        }
 
-    delete PointGreyCam;
-    delete PointGreyCam2;
+        ////DEMOSAIC
+        imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, MAT_CONVERSION_CHANNELS, rawL, Mat::AUTO_STEP);
+        imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, MAT_CONVERSION_CHANNELS, rawR, Mat::AUTO_STEP);
 
-    destroyAllWindows();
 
-    printf("Ending Program...");
-    waitKey(0);
+        if (imgBayerL.empty() || imgBayerR.empty()) {
+            cout << "End of video file reached. Exiting...\n";
+            waitKey(0);
+            return;
+        }
+
+        if (imgBayerL.channels() == 1) {
+            cvtColor(imgBayerL, cimgL, COLOR_BayerBG2BGR);
+            cvtColor(imgBayerR, cimgR, COLOR_BayerBG2BGR);
+        }
+        else {
+            imgBayerL.copyTo(cimgL);
+            imgBayerR.copyTo(cimgR);
+        }
+
+        remap(cimgL, cimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
+        remap(cimgR, cimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
+
+        //Cropping to ROI size
+        cimgL = cimgL(newRoi);
+        cimgR = cimgR(newRoi);
+
+    }
+    else {
+        cimgL = imread(imgLfn, IMREAD_COLOR);
+        cimgR = imread(imgRfn, IMREAD_COLOR);
+        imshow("L", cimgL);
+        waitKey(30);
+    }
+
+
+    //FIND DISPARITY
+
+    imshow("L", cimgL);
+    waitKey(30);
+    ////////////Displaying Rectified Images side by side (debugging)/////////
+    /*Mat H;
+    hconcat(cimgL, cimgR, H);
+
+    int distBtwnLines = 20;
+    for (int l = 0; l < H.rows; l += distBtwnLines)
+    line(H, Point(0, l), Point(H.cols, l), Scalar(0, 0, 255));
+    rectangle(H, roiL, Scalar(0, 0, 255), 2, 8, 0);
+    rectangle(H, Rect(roiR.x + cimgL.cols, roiR.y, roiR.width, roiR.height), Scalar(0, 0, 255), 2, 8, 0);
+    rectangle(H, newRoi, Scalar(0, 255, 0), 2, 8, 0);
+    imshow("Combo", H);*/
+    /////////////////////////////////////////////////////////////////////////
+
+    //Readying imgs to find disparity
+    if (preProcess)
+        preProc();
+
+    //Outputs disparity map to disp8U
+    findDisparity(crL, crR);
+
+    //threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);    //Close cut-off plane
+    threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);//THRESH_BINARY);// | THRESH_OTSU);    //The far plane is omitted if using OTSU flag
+
+                                                              //Use background screenshot to improve disparity map
+    if (useRealBackground) {
+        //cvtColor(realBackground, realBackground, CV_BGR2HSV);
+        //cvtColor(cimgL, cimgL, CV_BGR2HSV);
+
+        absdiff(realBackground, cimgL, diff_BG_FG);
+        //cvtColor(cimgL, cimgL, CV_HSV2BGR);
+        cvtColor(diff_BG_FG, diff_BG_FG, COLOR_BGR2GRAY);
+        threshold(diff_BG_FG, diff_BG_FG, 10, 200, THRESH_BINARY);
+        //imshow("thresh-before", thresh);
+        erode(diff_BG_FG, diff_BG_FG, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5)));
+        thresh += diff_BG_FG;
+        //thresh = diff_BG_FG.clone();
+        //imshow("thresh-after", thresh);
+        //imshow("DIFFERENCE", diff_BG_FG);
+    }
+
+    //Find Superpixels
+    superpixels();
+
+    //Attempts at post processing threshold
+    if (postProcess)
+        postProc();
+
+    //OUTPUT IMGS
+    if (showDebugImgs) {
+        imshow("disp8U", disp8U);
+        imshow("Superpixels!", superpixelatedImg);
+        imshow("Thresh", thresh);
+        imshow("cimgL", cimgL);
+
+        //For comparison purposes only
+        //Old version of masking
+        //maskedL = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
+        //maskedR = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
+        //cimgL.copyTo(maskedL, thresh);
+        //cimgR.copyTo(maskedR, thresh);
+        //imshow("MaskedL", maskedL);
+    }
+    imshow("FilteredImg", filteredImg);
+    waitKey(30);
+
+    if (show3D) {
+        drawPointCloud();
+    }
+    //ModelWindow.spinOnce(30);
+
+    //SAVE DEBUG IMAGES
+    if (saveDebugImgs) {
+        VWdisp8U.open(string(PATH_TO_VIDEOS) + "disp8U.avi", 0, POINT_GREY_FPS, disp8U.size(), false);
+        VWsuperpixelatedImg.open(string(PATH_TO_VIDEOS) + "Superpixelated.avi", 0, POINT_GREY_FPS, superpixelatedImg.size(), false);
+        VWthresh.open(string(PATH_TO_VIDEOS) + "Thresh.avi", 0, POINT_GREY_FPS, thresh.size(), false);
+
+        VWdisp8U << disp8U;
+        VWsuperpixelatedImg << superpixelatedImg;
+        VWthresh << thresh;
+    }
+
+    //USER INPUT - Saving, Pausing and Ending
+    key = waitKey(2);
+
+    switch (key) {
+    case ESC_KEY:    //END PROGRAM
+        endProgram();
+        return;
+        break;
+
+    case 's':    //STEP THROUGH PAUSED VIDEO
+        printf("Stepping into next frame...");
+        PointGreyCam->start_capture();
+        PointGreyCam2->start_capture();
+
+        rawL = PointGreyCam->get_raw_data_force_update();
+        rawR = PointGreyCam2->get_raw_data_force_update();
+
+        PointGreyCam->stop_capture();
+        PointGreyCam2->stop_capture();
+
+        break;
+
+    case 'b':    //CAPTURE BACKGROUND
+        printf("Capturing background...");
+
+        imshow("CIMGL", cimgL);
+        waitKey(30);
+        realBackground = cimgL;
+        imwrite("DebugImgs/background.bmp", realBackground);
+        useRealBackground = true;
+        break;
+
+    case 'c':  //GENERATES POINT CLOUD
+        if (show3D) {
+            show3D = false;
+            printf("show3D is now false");
+        }
+        else {
+            show3D = true;
+            printf("show3D is now true");
+        }
+
+        if (PointWriter.isOpened() && !pointMat.empty()) {
+            //cout << "Channels: " << pointMat.channels();
+            //PointWriter << "PointMat" << pointMat;
+            //imwrite("pointMat.jpg", pointMat);
+
+            /*for (int col = 0; col < pointMat.cols; col++) {
+            for (int row = 0; row < pointMat.rows; row++) {
+            pointMat
+            }
+            }*/
+
+            cout << "DID NOT SAVE THIS IS EMPTY!!!\n";
+        }
+        else {
+            printf("Unable to open PointWriter file || pointMat is empty\n");
+            break;
+        }
+        //cout << pointMat;
+        PointWriter.release();
+        printf("Point cloud has been saved!\n");
+        break;
+
+    case 't': //TOGGLES USE REAL BACKGROUND
+        if (useRealBackground)
+            useRealBackground = false;
+        else
+            useRealBackground = true;
+        break;
+    case 'p':    //PAUSE PROGRAM
+        if (!paused) {
+            printf("===============================\n");
+            printf("Capture Paused - Press 'p' to continue capturing\n");
+            PointGreyCam->stop_capture();
+            PointGreyCam2->stop_capture();
+            paused = true;
+        }
+        else {
+            printf("===============================\n");
+            printf("Resuming Capture...\n");
+            PointGreyCam->start_capture();
+            PointGreyCam2->start_capture();
+            paused = false;
+        }
+        break;
+    }
+    //////////////////////////////////////////////////////////User input - end
 }
 
+void display()
+{
+    mainLoop();
+
+    /////////////////////////////////////
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glPushMatrix();
+    glLoadIdentity();
+    //gluOrtho2D(0.0, 400.0, 0.0, 150.0);
+    //gluPerspective(fov, aspect_3D, nearClipping, farClipping);
+    //glViewport(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
+    //glTranslatef(-35 / 2.0, 0,0);
+    //glMultMatrixf(filteredPoints);
+
+    //gluLookAt(3, 4, 2, 0, 0, 0, 0, 0, 1);
+    //Mat filteredPointsMat = Mat(filteredPoints);
+
+    /*float minX = -9999999, maxX = -9999999, minY = -9999999, maxY = -9999999, minZ = -9999999, maxZ = -9999999;
+    float centreX, centreY, centreZ;
+    for (auto i : filteredPoints) {
+    if (i.x > maxX) maxX = i.x;
+    if (i.x < minX) minX = i.x;
+    if (i.y > maxY) maxY = i.y;
+    if (i.y < minY) minY = i.y;
+    if (i.z > maxZ) maxZ = i.z;
+    if (i.z < minZ) minZ = i.z;
+    }
+    cout    << "\n maxX" << maxX
+    <<"\n minX" << minX
+    <<"\n maxY" << maxY
+    <<"\n minY" << minY
+    <<"\n maxZ" << maxZ
+    <<"\n minZ" << minZ;*/
+
+
+    //maxX  35.4924
+    //minX   - 1e+07
+    //maxY  21.7356
+    //minY   - 1e+07
+    //maxZ  70.1333
+    //minZ   - 1e+07
+
+
+
+    //minMaxLoc(filteredPointsMat , minX, maxX);
+    //gluLookAt(maxX/2, maxY/2, maxZ/2, 0, 0, 0, 0, 0, 1);
+    //gluLookAt(eyeX/10.0, eyeY/10.0, eyeZ/10.0, centerX/10.0, centerY / 10.0, centerZ / 10.0, upX/10.0, upY/10.0, upZ/10.0);
+
+    glPointSize(1);
+    //glutSolidSphere(0.5, 20, 20);
+
+    glBegin(GL_POINTS); // render with points
+
+                        //for (auto i : colour_vector) {
+                        //    glColor3f(i.val[0], i.val[1], i.val[2]);
+                        //}
+    for (auto i : filteredPoints) {
+        glVertex3f(i.x, i.y, i.z);
+    }
+    //glVertex3f(5.0f, 4.0f, 5.0f); //display a point
+
+    /////////////////////////////////////
+    glPopMatrix();
+    glPopAttrib();
+
+    glEnd();
+    glFlush();
+    glutSwapBuffers();
+    //glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    cout << "HELLOHELLOHELLOHELLO\n";
+}
+
+void reshape(int x, int y) {
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    //glFrustum(-1.0, 1.0, -1.0, 1.0, 0.0001f, 10000.0);
+    gluPerspective(45, x / y, 0.001f, 100.0f);
+}
+
+void init_openGL(int argc, char** argv) {
+
+    glutInit(&argc, argv);  //Can only be initialised once
+    glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
+    glutInitWindowPosition(10, 10);
+    glutInitWindowSize(FRAME_WIDTH, FRAME_HEIGHT);
+    //GLFWwindow* window = glfwCreateWindow(FRAME_WIDTH, FRAME_HEIGHT, "PointCloud", NULL, NULL);
+    glutCreateWindow("PointCloud");
+    //GLFWwindow* window = glfwCreateWindow(FRAME_WIDTH, FRAME_HEIGHT, "Point Cloud New Version", NULL, NULL);
+
+    //////////////////////////////////////////////////
+    //init
+    glClearColor(1.0, 1.0, 1.0, 0.0);
+
+    glColor3f(0.0, 1.0, 0.0);
+    glPointSize(10);
+    //glShadeModel(GL_FLAT);
+    //glViewPort(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
+    //glMatrixMode(GL_PROJECTION);
+    //glLoadIdentity();
+    //glFrustum(-1.0, 1.0, -1.0, 1.0, 0.0001f, 10000.0);
+    //gluPerspective(45, FRAME_WIDTH / FRAME_HEIGHT, 0.001f, 100.0f);
+    glMatrixMode(GL_MODELVIEW);
+    //gluOrtho2D(0.0, 400.0, 0.0, 150.0);
+    //////////////////////////////////////////////////
+    //reshape
+    glutDisplayFunc(display);
+    glutReshapeFunc(reshape);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////MAIN/////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv) {
 
     if (argc == 0) {
@@ -741,8 +1062,8 @@ int main(int argc, char** argv) {
     }
 
     CommandLineParser parser(argc, argv, "{w|9|}{h|6|}{s|1.0|}{nr||}{help||}{@input|../data/stereo_calib.xml|}{iL|Images/meL-1meter.png|}{iR|Images/meR-1meter.png|}{fakeBackground|Images/moonBackground1.jpg|}");
-    String imgLfn = parser.get<string>("iL");
-    String imgRfn = parser.get<string>("iR");
+    imgLfn = parser.get<string>("iL");
+    imgRfn = parser.get<string>("iR");
     String fakeBackgroundImgfn = parser.get<string>("fakeBackground");
     if (fakeBackgroundImgfn == "none")
         useFakeBackground = false;
@@ -757,11 +1078,6 @@ int main(int argc, char** argv) {
     init_sbm();
 
     if (show3D) {
-        if (!glfwInit()) {
-            printf("Failed to initialize GLFW. Ending program");
-            return -1;
-        }
-
         init_openGL(argc, argv);
     }
 
@@ -820,6 +1136,7 @@ int main(int argc, char** argv) {
     disparityTrackbars();
     superPixelTrackbars();
     threshTrackbars();
+    pointCloudTrackbars();
 
     //CALCULATES RECTIFICATION MAP
     stereoRectify(M1, D1, M2, D2, imageSize, R, T, R1, R2, P1, P2, Q, CALIB_ZERO_DISPARITY, -1, imageSize, &roiL, &roiR);
@@ -841,237 +1158,11 @@ int main(int argc, char** argv) {
     //cloudWidget = viz::WCloud(pointMat, viz::Color::green());
 
     //MAIN LOOP: Read, Demosaic, find Disp, Mask
+    //while (true) {
+    //    mainLoop();
+    //}
     while (true) {
-        if (webcam) {
-            ////READ
-            rawL = PointGreyCam->get_raw_data_force_update();
-            rawR = PointGreyCam2->get_raw_data_force_update();
-            if (rawL == NULL || rawR == NULL) {
-                cout << "Failed to read raw";
-                endProgram();
-                break;
-                waitKey(0);
-            }
-
-            ////DEMOSAIC
-            imgBayerL = Mat(FRAME_HEIGHT, FRAME_WIDTH, MAT_CONVERSION_CHANNELS, rawL, Mat::AUTO_STEP);
-            imgBayerR = Mat(FRAME_HEIGHT, FRAME_WIDTH, MAT_CONVERSION_CHANNELS, rawR, Mat::AUTO_STEP);
-
-
-            if (imgBayerL.empty() || imgBayerR.empty()) {
-                cout << "End of video file reached. Exiting...\n";
-                waitKey(0);
-                break;
-            }
-
-            if (imgBayerL.channels() == 1) {
-                cvtColor(imgBayerL, cimgL, COLOR_BayerBG2BGR);
-                cvtColor(imgBayerR, cimgR, COLOR_BayerBG2BGR);
-            }
-            else {
-                imgBayerL.copyTo(cimgL);
-                imgBayerR.copyTo(cimgR);
-            }
-
-            remap(cimgL, cimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
-            remap(cimgR, cimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
-
-            //Cropping to ROI size
-            cimgL = cimgL(newRoi);
-            cimgR = cimgR(newRoi);
-
-        }
-        else {
-            cimgL = imread(imgLfn, IMREAD_COLOR);
-            cimgR = imread(imgRfn, IMREAD_COLOR);
-            imshow("L", cimgL);
-            waitKey(30);
-        }
-    
-
-        //FIND DISPARITY
-
-        imshow("L", cimgL);
-        waitKey(30);
-        ////////////Displaying Rectified Images side by side (debugging)/////////
-        /*Mat H;
-        hconcat(cimgL, cimgR, H);
-
-        int distBtwnLines = 20;
-        for (int l = 0; l < H.rows; l += distBtwnLines)
-            line(H, Point(0, l), Point(H.cols, l), Scalar(0, 0, 255));
-        rectangle(H, roiL, Scalar(0, 0, 255), 2, 8, 0);
-        rectangle(H, Rect(roiR.x + cimgL.cols, roiR.y, roiR.width, roiR.height), Scalar(0, 0, 255), 2, 8, 0);
-        rectangle(H, newRoi, Scalar(0, 255, 0), 2, 8, 0);
-        imshow("Combo", H);*/
-        /////////////////////////////////////////////////////////////////////////
-
-        //Readying imgs to find disparity
-        if (preProcess)
-            preProc();
-        
-        //Outputs disparity map to disp8U
-        findDisparity(crL, crR);
-
-        //threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);    //Close cut-off plane
-        threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);//THRESH_BINARY);// | THRESH_OTSU);    //The far plane is omitted if using OTSU flag
-
-        //Use background screenshot to improve disparity map
-        if (useRealBackground) {
-            //cvtColor(realBackground, realBackground, CV_BGR2HSV);
-            //cvtColor(cimgL, cimgL, CV_BGR2HSV);
-
-            absdiff(realBackground, cimgL, diff_BG_FG);
-            //cvtColor(cimgL, cimgL, CV_HSV2BGR);
-            cvtColor(diff_BG_FG, diff_BG_FG, COLOR_BGR2GRAY);
-            threshold(diff_BG_FG, diff_BG_FG, 10, 200, THRESH_BINARY);
-            //imshow("thresh-before", thresh);
-            erode(diff_BG_FG, diff_BG_FG, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5,5)));
-            thresh += diff_BG_FG;
-            //thresh = diff_BG_FG.clone();
-            //imshow("thresh-after", thresh);
-            //imshow("DIFFERENCE", diff_BG_FG);
-        }
-
-        //Find Superpixels
-        superpixels();
-
-        //Attempts at post processing threshold
-        if (postProcess)
-            postProc();
-
-        //OUTPUT IMGS
-        if (showDebugImgs) {
-            imshow("disp8U", disp8U);
-            imshow("Superpixels!", superpixelatedImg);
-            imshow("Thresh", thresh);
-            imshow("cimgL", cimgL);
-
-            //For comparison purposes only
-            //Old version of masking
-            //maskedL = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
-            //maskedR = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
-            //cimgL.copyTo(maskedL, thresh);
-            //cimgR.copyTo(maskedR, thresh);
-            //imshow("MaskedL", maskedL);
-        }
-        imshow("FilteredImg", filteredImg);
-        waitKey(30);
-
-        if (show3D) {
-            //show3D = false;
-            drawPointCloud();
-
-            //glBegin(GL_POINTS);
-            //glVertex3f(0.0f, 0.0f, 0.0f);
-            //glVertex3f(50.0f, 50.0f, 50.0f);
-            //glEnd();
-
-
-
-            
-        }
-        //ModelWindow.spinOnce(30);
-
-        //SAVE DEBUG IMAGES
-        if (saveDebugImgs) {
-            VWdisp8U.open(string(PATH_TO_VIDEOS) + "disp8U.avi", 0, POINT_GREY_FPS, disp8U.size(), false);
-            VWsuperpixelatedImg.open(string(PATH_TO_VIDEOS) + "Superpixelated.avi", 0, POINT_GREY_FPS, superpixelatedImg.size(), false);
-            VWthresh.open(string(PATH_TO_VIDEOS) + "Thresh.avi", 0, POINT_GREY_FPS, thresh.size(), false);
-
-            VWdisp8U << disp8U;
-            VWsuperpixelatedImg << superpixelatedImg;
-            VWthresh << thresh;
-        }
-
-        //USER INPUT - Saving, Pausing and Ending
-        key = waitKey(2);
-
-        switch (key) {
-        case ESC_KEY:    //END PROGRAM
-            endProgram();
-            return 0;
-            break;
-
-        case 's' :    //STEP THROUGH PAUSED VIDEO
-            printf("Stepping into next frame...");
-            PointGreyCam->start_capture();
-            PointGreyCam2->start_capture();
-
-            rawL = PointGreyCam->get_raw_data_force_update();
-            rawR = PointGreyCam2->get_raw_data_force_update();
-
-            PointGreyCam->stop_capture();
-            PointGreyCam2->stop_capture();
-            
-            break;
-
-        case 'b' :    //CAPTURE BACKGROUND
-            printf("Capturing background...");
-
-            imshow("CIMGL", cimgL);
-            waitKey(30);
-            realBackground = cimgL;
-            imwrite("DebugImgs/background.bmp", realBackground);
-            useRealBackground = true;
-            break;
-
-        case 'c' :  //GENERATES POINT CLOUD
-            if (show3D) {
-                show3D = false;
-                printf("show3D is now false");
-            }
-            else {
-                show3D = true;
-                printf("show3D is now true");
-            }
-           
-            if (PointWriter.isOpened() && !pointMat.empty()) {
-                //cout << "Channels: " << pointMat.channels();
-                //PointWriter << "PointMat" << pointMat;
-                //imwrite("pointMat.jpg", pointMat);
-
-                /*for (int col = 0; col < pointMat.cols; col++) {
-                    for (int row = 0; row < pointMat.rows; row++) {
-                        pointMat
-                    }
-                }*/
-
-                cout << "DID NOT SAVE THIS IS EMPTY!!!\n";
-            }
-            else {
-                printf("Unable to open PointWriter file || pointMat is empty\n");
-                break;
-            }
-            //cout << pointMat;
-            PointWriter.release();
-            printf("Point cloud has been saved!\n");
-            break;
-
-        case 't' : //TOGGLES USE REAL BACKGROUND
-            if (useRealBackground)
-                useRealBackground = false;
-            else
-                useRealBackground = true;
-            break;
-        case 'p' :    //PAUSE PROGRAM
-            if (!paused) {
-                printf("===============================\n");
-                printf("Capture Paused - Press 'p' to continue capturing\n");
-                PointGreyCam->stop_capture();
-                PointGreyCam2->stop_capture();
-                paused = true;
-            }
-            else {
-                printf("===============================\n");
-                printf("Resuming Capture...\n");
-                PointGreyCam->start_capture();
-                PointGreyCam2->start_capture();
-                paused = false;
-            }
-            break;
-        }
-        //////////////////////////////////////////////////////////User input - end
+        glutMainLoop();
     }
     cout << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
          << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
