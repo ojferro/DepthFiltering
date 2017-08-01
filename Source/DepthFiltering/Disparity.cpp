@@ -557,6 +557,7 @@ void drawPointCloud() {
 
     reprojectImageTo3D(thresh_3D, pointMat, Q, true, -1); //pointMat type: CV_32FC3, pointMat channels: 3
 
+    filteredPoints.clear();
     //////////////////////////////////////////////
     //Split
     //std::vector<Vec3b> colour_vector;
@@ -588,25 +589,25 @@ void drawPointCloud() {
 
     //ofstream of;
     //of.open("PointCloudFile.txt");
-    //for (int row = 0; row < pointMat.size().height; row++)
-    //    {
-    //        for (int col = 0; col < pointMat.size().width; col++)
-    //        {
-    //            if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000 ) {
-    //                //Point3f pt(pointMat.at<Point3f>(row, col).x, pointMat.at<Point3f>(row, col).y, pointMat.at<Point3f>(row, col).z + 50);
-    //                //filteredPoints.push_back(pt);
-    //                filteredPoints.push_back(pointMat.at<Point3f>(row, col));
-    //                colour_vector.push_back(cimgL.at<Vec3b>(row, col));
-    //                //of << "[" << pointMat.at<Point3f>(row, col).x << ", " << pointMat.at<Point3f>(row, col).y << ", " << pointMat.at<Point3f>(row, col).z << "]\n";
-    //            }
-    //        }
-    //    }
+    for (int row = 0; row < pointMat.size().height; row++)
+        {
+            for (int col = 0; col < pointMat.size().width; col++)
+            {
+                if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000 ) {
+                    Point3f pt(pointMat.at<Point3f>(row, col).x, pointMat.at<Point3f>(row, col).y, pointMat.at<Point3f>(row, col).z - 50);
+                    filteredPoints.push_back(pt);
+                    //filteredPoints.push_back(pointMat.at<Point3f>(row, col));
+                    colour_vector.push_back(cimgL.at<Vec3b>(row, col));
+                    //of << "[" << pointMat.at<Point3f>(row, col).x << ", " << pointMat.at<Point3f>(row, col).y << ", " << pointMat.at<Point3f>(row, col).z << "]\n";
+                }
+            }
+        }
 
 
     int negatives = 50;
     filteredPoints.push_back(Point3f((x/10.0+0.5-negatives)*scale, (y/10.0+0-negatives)*scale, (z/10.0+0-negatives)*scale));
     filteredPoints.push_back(Point3f((x/10.0+0-negatives)*scale, (y/10.0+0-negatives)*scale, (z/10.0+0-negatives)*scale));
-    filteredPoints.push_back(Point3f((x/10.0+0-negatives)*scale, (y/10.0+0.5-negatives)*scale, (z/10.0+0-negatives)*scale));
+    //filteredPoints.push_back(Point3f((x/10.0+0-negatives)*scale, (y/10.0+0.5-negatives)*scale, (z/10.0+0-negatives)*scale));
     //filteredPoints.push_back(Point3f((x/10.0+0-negatives)*scale, (y/10.0+0-negatives)*scale, (z/10.0+4-negatives)*scale));
     //of.close();
     //cout << filteredPoints.capacity();
@@ -709,8 +710,96 @@ void drawPointCloud() {
     //////////////////////////////////////////////////
 }
 
+void display()
+{
+    //mainLoop();
+
+    /////////////////////////////////////
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glLoadIdentity();
+    //glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glPushMatrix();
+
+    //gluOrtho2D(0.0, 400.0, 0.0, 150.0);
+    //gluPerspective(fov, aspect_3D, nearClipping, farClipping);
+    //glViewport(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
+    //glTranslatef(-35 / 2.0, 0,0);
+    //glMultMatrixf(filteredPoints);
+
+    //gluLookAt(3, 4, 2, 0, 0, 0, 0, 0, 1);
+    //Mat filteredPointsMat = Mat(filteredPoints);
+
+    /*float minX = -9999999, maxX = -9999999, minY = -9999999, maxY = -9999999, minZ = -9999999, maxZ = -9999999;
+    float centreX, centreY, centreZ;
+    for (auto i : filteredPoints) {
+    if (i.x > maxX) maxX = i.x;
+    if (i.x < minX) minX = i.x;
+    if (i.y > maxY) maxY = i.y;
+    if (i.y < minY) minY = i.y;
+    if (i.z > maxZ) maxZ = i.z;
+    if (i.z < minZ) minZ = i.z;
+    }
+    cout    << "\n maxX" << maxX
+    <<"\n minX" << minX
+    <<"\n maxY" << maxY
+    <<"\n minY" << minY
+    <<"\n maxZ" << maxZ
+    <<"\n minZ" << minZ;*/
+
+
+    //maxX  35.4924
+    //minX   - 1e+07
+    //maxY  21.7356
+    //minY   - 1e+07
+    //maxZ  70.1333
+    //minZ   - 1e+07
+
+
+
+    //minMaxLoc(filteredPointsMat , minX, maxX);
+    //gluLookAt(maxX/2, maxY/2, maxZ/2, 0, 0, 0, 0, 0, 1);
+    //gluLookAt(eyeX/10.0, eyeY/10.0, eyeZ/10.0, centerX/10.0, centerY / 10.0, centerZ / 10.0, upX/10.0, upY/10.0, upZ/10.0);
+
+    glPointSize(10);
+    //glutSolidSphere(0.5, 20, 20);
+
+    glBegin(GL_POINTS); // render with points
+
+                        //for (auto i : colour_vector) {
+                        //    glColor3f(i.val[0], i.val[1], i.val[2]);
+                        //}
+
+    //for (int i = 0; i < colour_vector.size; i++) {
+    //for (auto i : colour_vector) {
+    //    glVertex3f(, i.y, i.z);
+    //}
+    
+
+    for (auto i : filteredPoints) {
+        //int b = colour_vector.back()[0];
+        //cout << "b"<<;
+        glColor3b (colour_vector.back()[2], colour_vector.back()[1], colour_vector.back()[0]);
+        glVertex3f(i.x, i.y, i.z);
+    }
+    //glVertex3f(5.0f, 4.0f, 5.0f); //display a point
+
+    /////////////////////////////////////
+    glPopMatrix();
+    glPopAttrib();
+
+    glEnd();
+    glFlush();
+    glutSwapBuffers();
+    //glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    cout << "HELLOHELLOHELLOHELLO\n";
+}
+
 void mainLoop() {
-    if (webcam) {
+    if (webcam) { 
         ////READ
         rawL = PointGreyCam->get_raw_data_force_update();
         rawR = PointGreyCam2->get_raw_data_force_update();
@@ -828,6 +917,7 @@ void mainLoop() {
 
     if (show3D) {
         drawPointCloud();
+        display();
     }
     //ModelWindow.spinOnce(30);
 
@@ -931,99 +1021,22 @@ void mainLoop() {
     }
     //////////////////////////////////////////////////////////User input - end
 }
-
-void display()
-{
-    mainLoop();
-
-    /////////////////////////////////////
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    glMatrixMode(GL_MODELVIEW);
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
-    glPushMatrix();
-    glLoadIdentity();
-    //gluOrtho2D(0.0, 400.0, 0.0, 150.0);
-    //gluPerspective(fov, aspect_3D, nearClipping, farClipping);
-    //glViewport(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
-    //glTranslatef(-35 / 2.0, 0,0);
-    //glMultMatrixf(filteredPoints);
-
-    //gluLookAt(3, 4, 2, 0, 0, 0, 0, 0, 1);
-    //Mat filteredPointsMat = Mat(filteredPoints);
-
-    /*float minX = -9999999, maxX = -9999999, minY = -9999999, maxY = -9999999, minZ = -9999999, maxZ = -9999999;
-    float centreX, centreY, centreZ;
-    for (auto i : filteredPoints) {
-    if (i.x > maxX) maxX = i.x;
-    if (i.x < minX) minX = i.x;
-    if (i.y > maxY) maxY = i.y;
-    if (i.y < minY) minY = i.y;
-    if (i.z > maxZ) maxZ = i.z;
-    if (i.z < minZ) minZ = i.z;
-    }
-    cout    << "\n maxX" << maxX
-    <<"\n minX" << minX
-    <<"\n maxY" << maxY
-    <<"\n minY" << minY
-    <<"\n maxZ" << maxZ
-    <<"\n minZ" << minZ;*/
-
-
-    //maxX  35.4924
-    //minX   - 1e+07
-    //maxY  21.7356
-    //minY   - 1e+07
-    //maxZ  70.1333
-    //minZ   - 1e+07
-
-
-
-    //minMaxLoc(filteredPointsMat , minX, maxX);
-    //gluLookAt(maxX/2, maxY/2, maxZ/2, 0, 0, 0, 0, 0, 1);
-    //gluLookAt(eyeX/10.0, eyeY/10.0, eyeZ/10.0, centerX/10.0, centerY / 10.0, centerZ / 10.0, upX/10.0, upY/10.0, upZ/10.0);
-
-    glPointSize(1);
-    //glutSolidSphere(0.5, 20, 20);
-
-    glBegin(GL_POINTS); // render with points
-
-                        //for (auto i : colour_vector) {
-                        //    glColor3f(i.val[0], i.val[1], i.val[2]);
-                        //}
-    for (auto i : filteredPoints) {
-        glVertex3f(i.x, i.y, i.z);
-    }
-    //glVertex3f(5.0f, 4.0f, 5.0f); //display a point
-
-    /////////////////////////////////////
-    glPopMatrix();
-    glPopAttrib();
-
-    glEnd();
-    glFlush();
-    glutSwapBuffers();
-    //glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    cout << "HELLOHELLOHELLOHELLO\n";
-}
-
-void reshape(int x, int y) {
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    //glFrustum(-1.0, 1.0, -1.0, 1.0, 0.0001f, 10000.0);
-    gluPerspective(45, x / y, 0.001f, 100.0f);
-}
-
-void glutIdleFunc(void(*func) (void)) {
-    cout << "Idle...";
-}
+//
+//void reshape(int x, int y) {
+//    glMatrixMode(GL_PROJECTION);
+//    glLoadIdentity();
+//    //glFrustum(-1.0, 1.0, -1.0, 1.0, 0.0001f, 10000.0);
+//    gluPerspective(45, x / y, 0.001f, 100.0f);
+//}
+//
+//void glutIdleFunc(void(*func) (void)) {
+//    cout << "Idle...";
+//}
 
 void init_openGL(int argc, char** argv) {
 
     glutInit(&argc, argv);  //Can only be initialised once
-    glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
+    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
     glutInitWindowPosition(10, 10);
     glutInitWindowSize(FRAME_WIDTH, FRAME_HEIGHT);
     //GLFWwindow* window = glfwCreateWindow(FRAME_WIDTH, FRAME_HEIGHT, "PointCloud", NULL, NULL);
@@ -1046,11 +1059,11 @@ void init_openGL(int argc, char** argv) {
     //gluOrtho2D(0.0, 400.0, 0.0, 150.0);
     //////////////////////////////////////////////////
     //reshape
-    glutDisplayFunc(display);
-    glutReshapeFunc(reshape);
+    //glutDisplayFunc(display);
+    //glutReshapeFunc(reshape);
     //glutIdleFunc(glutIdleFunc);
-    glutPostRedisplay();
-    glutMainLoop();
+    //glutPostRedisplay();
+    //glutMainLoop();
 }
 
 
@@ -1084,9 +1097,9 @@ int main(int argc, char** argv) {
     //Initialize disparity parameters
     init_sbm();
 
-    //if (show3D) {
-    //    init_openGL(argc, argv);
-    //}
+    if (show3D) {
+        init_openGL(argc, argv);
+    }
 
     if (!webcam) {
         cimgL = imread(imgLfn, IMREAD_COLOR);
@@ -1165,17 +1178,9 @@ int main(int argc, char** argv) {
     //cloudWidget = viz::WCloud(pointMat, viz::Color::green());
 
     //MAIN LOOP: Read, Demosaic, find Disp, Mask
-    //while (true) {
-    //    mainLoop();
-    //}
-
-    if (show3D) {
-        init_openGL(argc, argv);
+    while (true) {
+        mainLoop();
     }
-    //while (true) {
-    //    glmainLoop();
-    //}
-    //glutMainLoop();
 
     cout << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
          << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
