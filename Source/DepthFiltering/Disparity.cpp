@@ -174,7 +174,7 @@ int disp12MaxDiff = 0;
 
 int x = 500, y = 500, z = 500;
 int scale = 1;
-float scaleDown = 0.1;
+float scaleDown = 1;
 
 ////////////////////////////////Point Grey Cameras/////////////////////////////////////////
 point_grey_camera_manager * GigeManager = 0;
@@ -534,7 +534,7 @@ void drawPointCloud() {
     filteredPoints.clear();
     colour_vector.clear();
 
-    int negatives = 50;
+    int negatives = 20;
 
     //ofstream of;
     //of.open("PointCloudFile_SCALED_DOWN.txt");
@@ -568,7 +568,7 @@ void display()
     /////////////////////////////////////
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
-    //glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
     glMatrixMode(GL_MODELVIEW);
     glPushAttrib(GL_ALL_ATTRIB_BITS);
@@ -619,13 +619,12 @@ void display()
 
     glBegin(GL_POINTS); // render with points
 
-    cout << filteredPoints.size() << "   " << colour_vector.size()<<"\n";
-    for (auto i : filteredPoints) {
-        //int b = colour_vector.back()[0];
-        //cout << "b"<<;
-        glColor3b (colour_vector.back()[2], colour_vector.back()[1], colour_vector.back()[0]);
-        colour_vector.pop_back();
-        glVertex3f(i.x, i.y, i.z);
+    cout << filteredPoints.size() << "   " << colour_vector.size() << "\n";
+    unsigned int i = 0;
+    for (; i < filteredPoints.size(); i++)
+    {
+        glColor3ub (colour_vector[i][2], colour_vector[i][1], colour_vector[i][0]);
+        glVertex3f(filteredPoints[i].x, filteredPoints[i].y, filteredPoints[i].z);
     }
 
     glPopMatrix();
@@ -899,6 +898,9 @@ void init_openGL(int argc, char** argv) {
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluPerspective(60, 1.333, 0.01, 100);
+    glRotatef(180, 0, 0, 1);
+    glRotatef(180, 0, 1, 0);
+    glTranslatef(0, 0, 20);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
