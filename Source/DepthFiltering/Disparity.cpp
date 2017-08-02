@@ -106,6 +106,7 @@ Mat superpixelEdges;
 Mat labelMask;
 Mat superpixelatedImg;    //Debugging only (to show the superpixels on img. Not needed for ultimate purpose of program)
 Mat filteredImg;
+Mat disp8U_filtered;
 
 Ptr<ximgproc::SuperpixelSLIC> seeds;
 //////////////////////////
@@ -413,6 +414,8 @@ void superpixels() {
         filteredImg = fakeBackgroundImg.clone();
 
     //Iterates through every superpixel
+    Mat validPointsMask = Mat::zeros(cimgL.size(), CV_8UC1);
+    Mat ones = Mat::ones(cimgL.size(), CV_8UC1);
     for (int labelNum = 0; labelNum <= maxLabel; labelNum++) {
 
         //Masks out everything but 1 superpixel at a time
@@ -421,8 +424,16 @@ void superpixels() {
 
         //Only copies over superpixels whose avg. on the disp8U image is > thresh
         if (avg >= FAR_AVG_THRESH)
-            cimgL.copyTo(filteredImg, labelMask);
+            //cimgL.copyTo(filteredImg, labelMask);
+            ones.copyTo(validPointsMask, labelMask);
     }
+    validPointsMask *= 255;
+    cimgL.copyTo(filteredImg, validPointsMask);
+    //(disp8U.size(), disp8U.type());
+    disp8U_filtered.release();
+    disp8U.copyTo(disp8U_filtered, validPointsMask);
+    imshow("disp8U NEW", disp8U_filtered);
+    waitKey(30);
 }
 
 void findDisparity(Mat Limg, Mat Rimg) {
@@ -525,7 +536,7 @@ void postProc (){
 void drawPointCloud() {
     printf("Generating point cloud...\n");
 
-    threshold(disp8U, thresh_3D, FAR_THRESH, 255, THRESH_TOZERO);
+    threshold(disp8U_filtered, thresh_3D, FAR_THRESH, 255, THRESH_TOZERO);
 
     pointMat = Mat(disp16S.size(), CV_32FC3);
 
@@ -534,7 +545,7 @@ void drawPointCloud() {
     filteredPoints.clear();
     colour_vector.clear();
 
-    int negatives = 20;
+    int negatives = 10;
 
     //ofstream of;
     //of.open("PointCloudFile_SCALED_DOWN.txt");
