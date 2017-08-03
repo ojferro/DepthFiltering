@@ -539,35 +539,19 @@ void postProc (){
 ////////////////////////////////////////////////////////////////////////////////
 // angle of rotation for the camera direction
 float angle = 0.0f;
-bool stateChanged = false;
+float currentAngle = 0.0f;
+//bool stateChanged = false;
 int button = -1;
 
-// actual vector representing the camera's direction
-float lx = 0.0f, lz = -1.0f;
-
-// XZ position of the camera
-float x = 0.0f, z = 5.0f;
-
-// the key states. These variables will be zero
-//when no key is being presses
-float deltaAngle = 0.0f;
-float deltaMove = 0;
 int xOrigin = -1;
 
-void computePos(float deltaMove) {
-
-    x += deltaMove * lx * 0.1f;
-    z += deltaMove * lz * 0.1f;
-}
 
 void renderScene(int _x, int _z) {
 
-    if (deltaMove)
-        computePos(deltaMove);
 
     glMatrixMode(GL_PROJECTION);
     //glTranslatef(0, 0, -20);
-    glRotatef(deltaAngle, 0, 1, 0);
+    glRotatef(currentAngle-angle, 0, 1, 0);
     //glTranslatef(0, 0, -20);
     glMatrixMode(GL_MODELVIEW);
     // Clear Color and Depth Buffers
@@ -582,52 +566,13 @@ void renderScene(int _x, int _z) {
     //    0.0f, 1.0f, 0.0f);
 }
 
-void mouseMove(int _x, int _y) {
-
-    cout << "DELTA ANGLE: " << deltaAngle << "\n";
-    // update camera's direction
-    // this will only be true when the left button is down
-    if (xOrigin != _x) {
-        // update deltaAngle
-        deltaAngle = (_x - xOrigin) / (FRAME_WIDTH / 180);// * -0.01f;
-        if (deltaAngle > 90)
-            deltaAngle = 90;
-        else if (deltaAngle < -90)
-            deltaAngle = -90;
-        
-        lx = sin(angle + deltaAngle);
-        lz = -cos(angle + deltaAngle);
-
-        //xOrigin = _x;
-        xOrigin = FRAME_WIDTH / 2;
-    }
-    else {
-        deltaAngle = 0;
-    }
-}
-
-void mouseButton(int button, int state, int _x, int _y) {
-
-    // only start motion if the left button is pressed
+void mouseControl(int button, int _x, int _y) {
     if (button == GLUT_LEFT_BUTTON) {
-
-        // when the button is released
-        //if (state == GLUT_UP) {
-            //angle += deltaAngle;
-            //xOrigin = -1;
-        //}
-        //else {// state = GLUT_DOWN
-        //if(stateChanged)
-        //    xOrigin = _x;
-        //}
-    }
-    else {
-        angle += deltaAngle;
-        //if (button != GLUT_LEFT_BUTTON) {
-        //    x = _x;
-        //    z = _y;
-        //}
-        //xOrigin = -1;
+        angle = (_x - xOrigin) * (180.0/ FRAME_WIDTH);// * -0.01f;
+        if (angle > 90)
+            angle = 90;
+        else if (angle < -90)
+            angle = -90;
     }
 }
 
@@ -646,8 +591,8 @@ void drawPointCloud() {
 
     int negatives = 50;
 
-    ofstream of;
-    of.open("PointCloudFile_SCALED_DOWN.txt");
+    //ofstream of;
+    //of.open("PointCloudFile_SCALED_DOWN.txt");
     cout << pointMat.size() << "   " << cimgL.size() << "\n";
 
     for (int row = 0; row < pointMat.size().height; row++)
@@ -660,7 +605,7 @@ void drawPointCloud() {
                     //filteredPoints.push_back(pointMat.at<Point3f>(row, col));
                     colour_vector.push_back(cimgL.at<Vec3b>(row, col));
                     //of << "[" << pointMat.at<Point3f>(row, col).x << ", " << pointMat.at<Point3f>(row, col).y << ", " << pointMat.at<Point3f>(row, col).z << "]\n";
-                    of << "[" << pt.x << ", " << pt.y << ", " << pt.z << "]\n";
+                    //of << "[" << pt.x << ", " << pt.y << ", " << pt.z << "]\n";
                 }
             }
         }
@@ -673,29 +618,31 @@ void drawPointCloud() {
 
 void display()
 {
+    xOrigin = FRAME_WIDTH / 2.0;
     //mainLoop();
     if (WM_MOUSEMOVE) {
         POINT p;
         GetCursorPos(&p);
         wglGetCurrentDC();
         ScreenToClient(WindowFromDC(wglGetCurrentDC()), &p);
-        cout << "\n========================\nX:" << p.x << "Y:" << p.y << "\n========================\n";
+        //cout << "\n========================\nX:" << p.x << "Y:" << p.y << "\n========================\n";
 
-        //(int button, int state, int x, int y)
-        if (button != (GetKeyState(VK_LBUTTON) & 0x100) ? GLUT_LEFT_BUTTON : -1) {
+        /*if (button != (GetKeyState(VK_LBUTTON) & 0x100) ? GLUT_LEFT_BUTTON : -1) {
             stateChanged = true;
             
         }
         else {
             stateChanged = false;
-        }
+        }*/
         button = (GetKeyState(VK_LBUTTON) & 0x100) ? GLUT_LEFT_BUTTON : -1;
-        int state = (GetKeyState(VK_LBUTTON) & 0x100) ? GLUT_DOWN : GLUT_UP;
+        //int state = (GetKeyState(VK_LBUTTON) & 0x100) ? GLUT_DOWN : GLUT_UP;
 
-        cout << "\n~~~~~~~~~~~~~~~~~~~~~\nX:" << button << "Y:" << state << "\n~~~~~~~~~~~~~~~~~~~~~\n";
-        mouseButton(button, state, p.x, p.y);
-        mouseMove(p.x, p.y);
-        renderScene(p.x, p.y);
+        int _x = p.x;
+        int _y = p.y;
+        mouseControl(button, _x, _y);
+        cout << "\n~~~~~~~~~~~~~~~~~~~~~\nButton:" << button << "  Angle: " << angle << "  _x: " << _x << "\n~~~~~~~~~~~~~~~~~~~~~\n";//<< "Y:" << state
+        renderScene(_x, _y);
+        currentAngle = angle;
     }
 
 
@@ -1006,9 +953,6 @@ void init_openGL(int argc, char** argv) {
     glutInitWindowSize(FRAME_WIDTH, FRAME_HEIGHT);
     glutCreateWindow("PointCloud");
 
-    //glutMouseFunc(mouseButton);
-    //glutMotionFunc(mouseMove);
-
     //////////////////////////////////////////////////
     //init
     glClearColor(1.0, 1.0, 1.0, 0.0);
@@ -1026,7 +970,6 @@ void init_openGL(int argc, char** argv) {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glClear(GL_COLOR_BUFFER_BIT);
-
 }
 
 
