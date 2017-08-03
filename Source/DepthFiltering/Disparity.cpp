@@ -21,6 +21,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <Windows.h>
 //#include "opencv2/viz.hpp"
 //#include "opencv2/viz/widgets.hpp"
 
@@ -173,7 +174,7 @@ int disp12MaxDiff = 0;
 //int upY    = 0 * 10;
 //int upZ = 1 * 10;
 
-int x = 500, y = 500, z = 500;
+int xPtCloud = 500, yPtCloud = 500, zPtCloud = 500;
 int scale = 1;
 float scaleDown = 1;
 
@@ -385,9 +386,9 @@ void pointCloudTrackbars() {
     //createTrackbar("upY", windowName, &upY, 1000, NULL);
     //createTrackbar("upZ", windowName, &upZ, 1000, NULL);
 
-    createTrackbar("X", windowName, &x, 1000, NULL);
-    createTrackbar("Y", windowName, &y, 1000, NULL);
-    createTrackbar("Z", windowName, &z, 1000, NULL);
+    createTrackbar("X", windowName, &xPtCloud, 1000, NULL);
+    createTrackbar("Y", windowName, &yPtCloud, 1000, NULL);
+    createTrackbar("Z", windowName, &zPtCloud, 1000, NULL);
     createTrackbar("Scale", windowName, &scale, 100, NULL);
 }
 ////////////////////////////////////////////////////////////
@@ -533,6 +534,104 @@ void postProc (){
     
 }
 
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////Sketchy Variable Declaration////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// angle of rotation for the camera direction
+float angle = 0.0f;
+bool stateChanged = false;
+int button = -1;
+
+// actual vector representing the camera's direction
+float lx = 0.0f, lz = -1.0f;
+
+// XZ position of the camera
+float x = 0.0f, z = 5.0f;
+
+// the key states. These variables will be zero
+//when no key is being presses
+float deltaAngle = 0.0f;
+float deltaMove = 0;
+int xOrigin = -1;
+
+void computePos(float deltaMove) {
+
+    x += deltaMove * lx * 0.1f;
+    z += deltaMove * lz * 0.1f;
+}
+
+void renderScene(int _x, int _z) {
+
+    if (deltaMove)
+        computePos(deltaMove);
+
+    glMatrixMode(GL_PROJECTION);
+    //glTranslatef(0, 0, -20);
+    glRotatef(deltaAngle, 0, 1, 0);
+    //glTranslatef(0, 0, -20);
+    glMatrixMode(GL_MODELVIEW);
+    // Clear Color and Depth Buffers
+    //glMatrixMode(GL_PROJECTION);
+    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Reset transformations
+    //glLoadIdentity();
+    // Set the camera
+    //gluLookAt(_x, 1.0f, _z,
+    //    _x + lx, 1.0f, _z + lz,
+    //    0.0f, 1.0f, 0.0f);
+}
+
+void mouseMove(int _x, int _y) {
+
+    cout << "DELTA ANGLE: " << deltaAngle << "\n";
+    // update camera's direction
+    // this will only be true when the left button is down
+    if (xOrigin != _x) {
+        // update deltaAngle
+        deltaAngle = (_x - xOrigin) / (FRAME_WIDTH / 180);// * -0.01f;
+        if (deltaAngle > 90)
+            deltaAngle = 90;
+        else if (deltaAngle < -90)
+            deltaAngle = -90;
+        
+        lx = sin(angle + deltaAngle);
+        lz = -cos(angle + deltaAngle);
+
+        //xOrigin = _x;
+        xOrigin = FRAME_WIDTH / 2;
+    }
+    else {
+        deltaAngle = 0;
+    }
+}
+
+void mouseButton(int button, int state, int _x, int _y) {
+
+    // only start motion if the left button is pressed
+    if (button == GLUT_LEFT_BUTTON) {
+
+        // when the button is released
+        //if (state == GLUT_UP) {
+            //angle += deltaAngle;
+            //xOrigin = -1;
+        //}
+        //else {// state = GLUT_DOWN
+        //if(stateChanged)
+        //    xOrigin = _x;
+        //}
+    }
+    else {
+        angle += deltaAngle;
+        //if (button != GLUT_LEFT_BUTTON) {
+        //    x = _x;
+        //    z = _y;
+        //}
+        //xOrigin = -1;
+    }
+}
+
+
 void drawPointCloud() {
     printf("Generating point cloud...\n");
 
@@ -545,10 +644,10 @@ void drawPointCloud() {
     filteredPoints.clear();
     colour_vector.clear();
 
-    int negatives = 10;
+    int negatives = 50;
 
-    //ofstream of;
-    //of.open("PointCloudFile_SCALED_DOWN.txt");
+    ofstream of;
+    of.open("PointCloudFile_SCALED_DOWN.txt");
     cout << pointMat.size() << "   " << cimgL.size() << "\n";
 
     for (int row = 0; row < pointMat.size().height; row++)
@@ -561,7 +660,7 @@ void drawPointCloud() {
                     //filteredPoints.push_back(pointMat.at<Point3f>(row, col));
                     colour_vector.push_back(cimgL.at<Vec3b>(row, col));
                     //of << "[" << pointMat.at<Point3f>(row, col).x << ", " << pointMat.at<Point3f>(row, col).y << ", " << pointMat.at<Point3f>(row, col).z << "]\n";
-                    //of << "[" << pt.x << ", " << pt.y << ", " << pt.z << "]\n";
+                    of << "[" << pt.x << ", " << pt.y << ", " << pt.z << "]\n";
                 }
             }
         }
@@ -575,7 +674,32 @@ void drawPointCloud() {
 void display()
 {
     //mainLoop();
+    if (WM_MOUSEMOVE) {
+        POINT p;
+        GetCursorPos(&p);
+        wglGetCurrentDC();
+        ScreenToClient(WindowFromDC(wglGetCurrentDC()), &p);
+        cout << "\n========================\nX:" << p.x << "Y:" << p.y << "\n========================\n";
 
+        //(int button, int state, int x, int y)
+        if (button != (GetKeyState(VK_LBUTTON) & 0x100) ? GLUT_LEFT_BUTTON : -1) {
+            stateChanged = true;
+            
+        }
+        else {
+            stateChanged = false;
+        }
+        button = (GetKeyState(VK_LBUTTON) & 0x100) ? GLUT_LEFT_BUTTON : -1;
+        int state = (GetKeyState(VK_LBUTTON) & 0x100) ? GLUT_DOWN : GLUT_UP;
+
+        cout << "\n~~~~~~~~~~~~~~~~~~~~~\nX:" << button << "Y:" << state << "\n~~~~~~~~~~~~~~~~~~~~~\n";
+        mouseButton(button, state, p.x, p.y);
+        mouseMove(p.x, p.y);
+        renderScene(p.x, p.y);
+    }
+
+
+    drawPointCloud();
     /////////////////////////////////////
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
@@ -626,7 +750,8 @@ void display()
     //gluLookAt(eyeX/10.0, eyeY/10.0, eyeZ/10.0, centerX/10.0, centerY / 10.0, centerZ / 10.0, upX/10.0, upY/10.0, upZ/10.0);
 
     glPointSize(1);
-    //glutSolidSphere(0.5, 20, 20);
+    glColor3ub(0, 100, 0);
+    glutSolidSphere(0.5, 20, 20);
 
     glBegin(GL_POINTS); // render with points
 
@@ -637,7 +762,7 @@ void display()
         glColor3ub (colour_vector[i][2], colour_vector[i][1], colour_vector[i][0]);
         glVertex3f(filteredPoints[i].x, filteredPoints[i].y, filteredPoints[i].z);
     }
-
+    
     glPopMatrix();
     glPopAttrib();
 
@@ -767,7 +892,7 @@ void mainLoop() {
     waitKey(30);
 
     if (show3D) {
-        drawPointCloud();
+        //drawPointCloud();
         display();
     }
     //ModelWindow.spinOnce(30);
@@ -872,17 +997,6 @@ void mainLoop() {
     }
     //////////////////////////////////////////////////////////User input - end
 }
-//
-//void reshape(int x, int y) {
-//    glMatrixMode(GL_PROJECTION);
-//    glLoadIdentity();
-//    //glFrustum(-1.0, 1.0, -1.0, 1.0, 0.0001f, 10000.0);
-//    gluPerspective(45, x / y, 0.001f, 100.0f);
-//}
-//
-//void glutIdleFunc(void(*func) (void)) {
-//    cout << "Idle...";
-//}
 
 void init_openGL(int argc, char** argv) {
 
@@ -890,9 +1004,10 @@ void init_openGL(int argc, char** argv) {
     glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
     glutInitWindowPosition(10, 10);
     glutInitWindowSize(FRAME_WIDTH, FRAME_HEIGHT);
-    //GLFWwindow* window = glfwCreateWindow(FRAME_WIDTH, FRAME_HEIGHT, "PointCloud", NULL, NULL);
     glutCreateWindow("PointCloud");
-    //GLFWwindow* window = glfwCreateWindow(FRAME_WIDTH, FRAME_HEIGHT, "Point Cloud New Version", NULL, NULL);
+
+    //glutMouseFunc(mouseButton);
+    //glutMotionFunc(mouseMove);
 
     //////////////////////////////////////////////////
     //init
@@ -900,30 +1015,18 @@ void init_openGL(int argc, char** argv) {
 
     glColor3f(0.0, 1.0, 0.0);
     glPointSize(10);
-    //glShadeModel(GL_FLAT);
-    //glViewPort(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
-    //glMatrixMode(GL_PROJECTION);
-    //glLoadIdentity();
-    //glFrustum(-1.0, 1.0, -1.0, 1.0, 0.0001f, 10000.0);
-    //gluPerspective(45, FRAME_WIDTH / FRAME_HEIGHT, 0.001f, 100.0f);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluPerspective(60, 1.333, 0.01, 100);
     glRotatef(180, 0, 0, 1);
     glRotatef(180, 0, 1, 0);
     glTranslatef(0, 0, 20);
+    glTranslatef(0, 0, 40);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glClear(GL_COLOR_BUFFER_BIT);
-    //gluOrtho2D(0.0, 400.0, 0.0, 150.0);
-    //////////////////////////////////////////////////
-    //reshape
-    //glutDisplayFunc(display);
-    //glutReshapeFunc(reshape);
-    //glutIdleFunc(glutIdleFunc);
-    //glutPostRedisplay();
-    //glutMainLoop();
+
 }
 
 
@@ -1037,9 +1140,16 @@ int main(int argc, char** argv) {
     //reprojectImageTo3D(disp32f, pointMat, Q, true, -1); //pointMat type: CV_32FC3, pointMat channels: 3
     //cloudWidget = viz::WCloud(pointMat, viz::Color::green());
 
-    //MAIN LOOP: Read, Demosaic, find Disp, Mask
+    //MAIN LOOP: Read, Find Disp, Superpixellate, Filter, Display 3D
+
+    printf("===============================\n");
+    printf("Capture Paused - Press 'p' to continue capturing\n");
+    PointGreyCam->stop_capture();
+    PointGreyCam2->stop_capture();
+    paused = true;
     while (true) {
         mainLoop();
+        //glutMainLoop();
     }
 
     cout << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
