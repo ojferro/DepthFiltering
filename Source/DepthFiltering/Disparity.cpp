@@ -488,7 +488,7 @@ void postProc (){
     
 }
 
-void renderScene(int _x, int _z) {
+void renderScene() {
 
     glMatrixMode(GL_PROJECTION);
     glRotatef(currentAngle-angle, 0, 1, 0);
@@ -534,7 +534,7 @@ void display()
         int _y = p.y;
         mouseControl(button, _x, _y);
         cout << "\n~~~~~~~~~~~~~~~~~~~~~\nButton:" << button << "  Angle: " << angle << "  _x: " << _x << "\n~~~~~~~~~~~~~~~~~~~~~\n";//<< "Y:" << state
-        renderScene(_x, _y);
+        renderScene();
         currentAngle = angle;
     }
 
