@@ -8,7 +8,7 @@
 #include <opencv2/calib3d.hpp>
 #include <stdio.h>
 #include <iostream>
-#include<fstream>
+#include <fstream>
 #include <iomanip>
 #include <opencv2/aruco.hpp>
 #include <opencv2/ximgproc.hpp>
@@ -22,8 +22,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <Windows.h>
-//#include "opencv2/viz.hpp"
-//#include "opencv2/viz/widgets.hpp"
 
 using namespace cv;
 using namespace std;
@@ -83,14 +81,10 @@ String imgRfn;
 //3D reprojection
 FileStorage PointWriter("point_cloud.yml", FileStorage::WRITE);
 Mat pointMat;
-Mat disp32f;
-//viz::Viz3d ModelWindow("Point cloud with colour");
-//viz::WCloud pointCloud = Mat(1,1,;
-//viz::WCloud cloudWidget(Mat::zeros(865, 1160, CV_32FC3), viz::Color::green());
-std::vector<Point3f> filteredPoints;
-std::vector<Vec3b> colour_vector;
+int validPtCount = 0;
+
 bool show3D = true;
-bool alreadyRan = false;
+
 
 //For Superpixels/////////
 int numSuperpixels = 500;
@@ -141,6 +135,11 @@ VideoWriter VWdisp8U;
 VideoWriter VWsuperpixelatedImg;
 VideoWriter VWthresh;
 
+//Point cloud mouse control
+float angle = 0.0f;
+float currentAngle = 0.0f;
+int button = -1;
+int xOrigin = -1;
 
 //////////////////////Masking Trackbar Variables///////////////////////////////////////////
 int H_MIN = 3;
@@ -164,15 +163,6 @@ int speckleRange = 256;
 int disp12MaxDiff = 0;
 
 //////////////////////PointCloud Trackbar Variables/////////////////////////////////////////
-//int eyeX = 36 / 2 * 10;
-//int eyeY = 22 / 2 * 10;
-//int eyeZ = 70 / 2 * 10;
-//int centerX= 0 * 10;
-//int centerY= 0 * 10;
-//int centerZ= 0 * 10;
-//int upX    = 0 * 10;
-//int upY    = 0 * 10;
-//int upZ = 1 * 10;
 
 int xPtCloud = 500, yPtCloud = 500, zPtCloud = 500;
 int scale = 1;
@@ -262,28 +252,6 @@ int init_PointGrey()
     return 0;
 }
 
-void mouseCloudControl() {
-    // position
-    glm::vec3 position = glm::vec3(0, 0, 5);
-    // horizontal angle : toward -Z
-    float horizontalAngle = 3.14f;
-    // vertical angle : 0, look at the horizon
-    float verticalAngle = 0.0f;
-    // Initial Field of View
-    float initialFoV = 45.0f;
-
-    float speed = 3.0f; // 3 units / second
-    float mouseSpeed = 0.005f;
-
-    // Get mouse position
-    double xpos, ypos;
-    //GLFWwindow* window = glfwCreateWindow(FRAME_WIDTH, FRAME_HEIGHT, "Point Cloud New Version", NULL, NULL);
-
-    //glfwGetCursorPos(window, &xpos, &ypos);
-    //glfw::glfwGetMousePos(&xpos, &ypos);
-    // Reset mouse position for next frame
-    //glfwSetCursorPos(window, FRAME_WIDTH / 2.0, FRAME_HEIGHT / 2.0);
-}
 
 int validateSAD(int sad) {
     if (sad < 5)
@@ -371,20 +339,9 @@ void superPixelTrackbars() {
 }
 
 void pointCloudTrackbars() {
-    //int numSuperpixels = 500, numLevels = 4, prior = 2, histogramBins = 5, numIterations = 8, maxLabel;
-
     String windowName = "Pt. Cloud Trackbars";
 
     namedWindow(windowName, 0);
-    //createTrackbar("eyeX", windowName, &eyeX, 1000, NULL);
-    //createTrackbar("eyeY", windowName, &eyeY, 100, NULL);
-    //createTrackbar("eyeZ", windowName, &eyeZ, 100, NULL);
-    //createTrackbar("centerX", windowName, &centerX, 1000, NULL);
-    //createTrackbar("centerY", windowName, &centerY,1000, NULL);
-    //createTrackbar("centerZ", windowName, &centerZ, 1000, NULL);
-    //createTrackbar("upX", windowName, &upX, 1000, NULL);
-    //createTrackbar("upY", windowName, &upY, 1000, NULL);
-    //createTrackbar("upZ", windowName, &upZ, 1000, NULL);
 
     createTrackbar("X", windowName, &xPtCloud, 1000, NULL);
     createTrackbar("Y", windowName, &yPtCloud, 1000, NULL);
@@ -430,11 +387,8 @@ void superpixels() {
     }
     validPointsMask *= 255;
     cimgL.copyTo(filteredImg, validPointsMask);
-    //(disp8U.size(), disp8U.type());
     disp8U_filtered.release();
     disp8U.copyTo(disp8U_filtered, validPointsMask);
-    imshow("disp8U NEW", disp8U_filtered);
-    waitKey(30);
 }
 
 void findDisparity(Mat Limg, Mat Rimg) {
@@ -443,17 +397,17 @@ void findDisparity(Mat Limg, Mat Rimg) {
     sbm->compute(Limg, Rimg, disp16S);
 
     ///////////////////////////////
-    Mat disp16S_2, disp8U_2, diff;
+    //Mat disp16S_2, disp8U_2, diff;
    /* Mat disp8U_orig, disp8U_2_orig;*/
-    Mat disp8U_crop, disp8U_2_crop;
+    //Mat disp8U_crop, disp8U_2_crop;
 
-    cv::flip(Limg, Limg, 1);
-    cv::flip(Rimg, Rimg, 1);
+    //cv::flip(Limg, Limg, 1);
+    //cv::flip(Rimg, Rimg, 1);
 
 
-    sbm->compute(Rimg, Limg, disp16S_2);
+    //sbm->compute(Rimg, Limg, disp16S_2);
 
-    cv::flip(disp16S_2, disp16S_2, 1);
+    //cv::flip(disp16S_2, disp16S_2, 1);
     //absdiff(disp16S, disp16S, diff);
 
     //imshow("DIFF", diff);
@@ -461,13 +415,13 @@ void findDisparity(Mat Limg, Mat Rimg) {
     //sbm->setMinDisparity(-minDisparity);
     //sbm->compute(Rimg, Limg, disp16S);
     disp16S.convertTo(disp8U, CV_8UC1, 255 / (ndisparities*16.0));
-    disp16S_2.convertTo(disp8U_2, CV_8UC1, 255 / (ndisparities*16.0));
+    //disp16S_2.convertTo(disp8U_2, CV_8UC1, 255 / (ndisparities*16.0));
     //imshow("disp8U_2", disp8U_2);
-    Rect crop1 = Rect(63, 0, disp8U.cols-63-68, disp8U.rows);
-    Rect crop2 = Rect(ndisparities, 0, disp8U_2.cols - 63 - 68, disp8U_2.rows);
-    disp8U_crop = disp8U(crop1);
-    disp8U_2_crop = disp8U_2(crop2);
-    absdiff(disp8U_crop, disp8U_2_crop, diff);
+    //Rect crop1 = Rect(63, 0, disp8U.cols-63-68, disp8U.rows);
+    //Rect crop2 = Rect(ndisparities, 0, disp8U_2.cols - 63 - 68, disp8U_2.rows);
+    //disp8U_crop = disp8U(crop1);
+    //disp8U_2_crop = disp8U_2(crop2);
+    //absdiff(disp8U_crop, disp8U_2_crop, diff);
     //imshow("DIFF", diff);
     //waitKey(30);
 }
@@ -516,9 +470,9 @@ void preProc() {
 }
 
 void postProc (){
-    imshow("BEFOREBEFORE", disp16S);
-    filterSpeckles(disp16S, 0, 5, 4);
-    imshow("AFTERAFTER", disp16S);
+    //imshow("BEFOREBEFORE", disp16S);
+    //filterSpeckles(disp16S, 0, 5, 4);
+    //imshow("AFTERAFTER", disp16S);
     //Mat temp, kernel;
     /*erode(thresh, temp, kernel);
     dilate(temp, thresh, kernel);*/
@@ -534,41 +488,18 @@ void postProc (){
     
 }
 
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////Sketchy Variable Declaration////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-// angle of rotation for the camera direction
-float angle = 0.0f;
-float currentAngle = 0.0f;
-//bool stateChanged = false;
-int button = -1;
-
-int xOrigin = -1;
-
-
 void renderScene(int _x, int _z) {
 
-
     glMatrixMode(GL_PROJECTION);
-    //glTranslatef(0, 0, -20);
     glRotatef(currentAngle-angle, 0, 1, 0);
-    //glTranslatef(0, 0, -20);
     glMatrixMode(GL_MODELVIEW);
-    // Clear Color and Depth Buffers
-    //glMatrixMode(GL_PROJECTION);
-    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    // Reset transformations
-    //glLoadIdentity();
-    // Set the camera
-    //gluLookAt(_x, 1.0f, _z,
-    //    _x + lx, 1.0f, _z + lz,
-    //    0.0f, 1.0f, 0.0f);
 }
 
 void mouseControl(int button, int _x, int _y) {
     if (button == GLUT_LEFT_BUTTON) {
-        angle = (_x - xOrigin) * (180.0/ FRAME_WIDTH);// * -0.01f;
+        angle = (_x - xOrigin) * (180.0/ FRAME_WIDTH);  // *180.0/FRAME_WIDTH maps the delta X to a corresponding angle
+                                                        //given that left of screen = -90 deg, and right part = 90 deg
+
         if (angle > 90)
             angle = 90;
         else if (angle < -90)
@@ -585,57 +516,19 @@ void drawPointCloud() {
     pointMat = Mat(disp16S.size(), CV_32FC3);
 
     reprojectImageTo3D(thresh_3D, pointMat, Q, true, -1); //pointMat type: CV_32FC3, pointMat channels: 3
-
-    filteredPoints.clear();
-    colour_vector.clear();
-
-    int negatives = 50;
-
-    //ofstream of;
-    //of.open("PointCloudFile_SCALED_DOWN.txt");
-    cout << pointMat.size() << "   " << cimgL.size() << "\n";
-
-    for (int row = 0; row < pointMat.size().height; row++)
-        {
-            for (int col = 0; col < pointMat.size().width; col++)
-            {
-                if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000 ) {
-                    Point3f pt(pointMat.at<Point3f>(row, col).x*scaleDown - 0, pointMat.at<Point3f>(row, col).y*scaleDown - 0, pointMat.at<Point3f>(row, col).z*scaleDown - negatives);
-                    filteredPoints.push_back(pt);
-                    //filteredPoints.push_back(pointMat.at<Point3f>(row, col));
-                    colour_vector.push_back(cimgL.at<Vec3b>(row, col));
-                    //of << "[" << pointMat.at<Point3f>(row, col).x << ", " << pointMat.at<Point3f>(row, col).y << ", " << pointMat.at<Point3f>(row, col).z << "]\n";
-                    //of << "[" << pt.x << ", " << pt.y << ", " << pt.z << "]\n";
-                }
-            }
-        }
-    //negatives = 50;
-    //filteredPoints.push_back(Point3f((x/10.0+0.5-negatives)*scale, (y/10.0+0-negatives)*scale, (z/10.0+0-negatives)*scale+2.0));
-    //filteredPoints.push_back(Point3f((x/10.0+0-negatives)*scale, (y/10.0+0-negatives)*scale, (z/10.0+0-negatives)*scale));
-    //filteredPoints.push_back(Point3f(0.00666812, -1.81203, -3.97678));
-    //filteredPoints.push_back(Point3f(1.0, 1.081203, -6.97678));
 }
 
 void display()
 {
     xOrigin = FRAME_WIDTH / 2.0;
-    //mainLoop();
     if (WM_MOUSEMOVE) {
         POINT p;
         GetCursorPos(&p);
         wglGetCurrentDC();
         ScreenToClient(WindowFromDC(wglGetCurrentDC()), &p);
-        //cout << "\n========================\nX:" << p.x << "Y:" << p.y << "\n========================\n";
 
-        /*if (button != (GetKeyState(VK_LBUTTON) & 0x100) ? GLUT_LEFT_BUTTON : -1) {
-            stateChanged = true;
-            
-        }
-        else {
-            stateChanged = false;
-        }*/
         button = (GetKeyState(VK_LBUTTON) & 0x100) ? GLUT_LEFT_BUTTON : -1;
-        //int state = (GetKeyState(VK_LBUTTON) & 0x100) ? GLUT_DOWN : GLUT_UP;
+       
 
         int _x = p.x;
         int _y = p.y;
@@ -645,8 +538,6 @@ void display()
         currentAngle = angle;
     }
 
-
-    drawPointCloud();
     /////////////////////////////////////
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
@@ -656,58 +547,27 @@ void display()
     glPushAttrib(GL_ALL_ATTRIB_BITS);
     glPushMatrix();
 
-    //gluOrtho2D(0.0, 400.0, 0.0, 150.0);
-    //gluPerspective(fov, aspect_3D, nearClipping, farClipping);
-    //glViewport(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
-    //glTranslatef(-35 / 2.0, 0,0);
-    //glMultMatrixf(filteredPoints);
-
-    //gluLookAt(3, 4, 2, 0, 0, 0, 0, 0, 1);
-    //Mat filteredPointsMat = Mat(filteredPoints);
-
-    /*float minX = -9999999, maxX = -9999999, minY = -9999999, maxY = -9999999, minZ = -9999999, maxZ = -9999999;
-    float centreX, centreY, centreZ;
-    for (auto i : filteredPoints) {
-    if (i.x > maxX) maxX = i.x;
-    if (i.x < minX) minX = i.x;
-    if (i.y > maxY) maxY = i.y;
-    if (i.y < minY) minY = i.y;
-    if (i.z > maxZ) maxZ = i.z;
-    if (i.z < minZ) minZ = i.z;
-    }
-    cout    << "\n maxX" << maxX
-    <<"\n minX" << minX
-    <<"\n maxY" << maxY
-    <<"\n minY" << minY
-    <<"\n maxZ" << maxZ
-    <<"\n minZ" << minZ;*/
-
-
-    //maxX  35.4924
-    //minX   - 1e+07
-    //maxY  21.7356
-    //minY   - 1e+07
-    //maxZ  70.1333
-    //minZ   - 1e+07
-
-
-
-    //minMaxLoc(filteredPointsMat , minX, maxX);
-    //gluLookAt(maxX/2, maxY/2, maxZ/2, 0, 0, 0, 0, 0, 1);
-    //gluLookAt(eyeX/10.0, eyeY/10.0, eyeZ/10.0, centerX/10.0, centerY / 10.0, centerZ / 10.0, upX/10.0, upY/10.0, upZ/10.0);
-
     glPointSize(1);
     glColor3ub(0, 100, 0);
     glutSolidSphere(0.5, 20, 20);
 
     glBegin(GL_POINTS); // render with points
 
-    cout << filteredPoints.size() << "   " << colour_vector.size() << "\n";
-    unsigned int i = 0;
-    for (; i < filteredPoints.size(); i++)
+    drawPointCloud();
+
+    int negatives = 50;
+    validPtCount = 0;
+    for (int row = 0; row < pointMat.size().height; row++)
     {
-        glColor3ub (colour_vector[i][2], colour_vector[i][1], colour_vector[i][0]);
-        glVertex3f(filteredPoints[i].x, filteredPoints[i].y, filteredPoints[i].z);
+        for (int col = 0; col < pointMat.size().width; col++)
+        {
+            if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000) {
+                Point3f pt(pointMat.at<Point3f>(row, col).x*scaleDown - 0, pointMat.at<Point3f>(row, col).y*scaleDown - 0, pointMat.at<Point3f>(row, col).z*scaleDown - negatives);
+                glColor3ub (cimgL.at<Vec3b>(row, col)[2], cimgL.at<Vec3b>(row, col)[1], cimgL.at<Vec3b>(row, col)[0]);
+                glVertex3f (pointMat.at<Point3f>(row, col).x*scaleDown - 0, pointMat.at<Point3f>(row, col).y*scaleDown - 0, pointMat.at<Point3f>(row, col).z*scaleDown - negatives);
+                validPtCount++;
+            }
+        }
     }
     
     glPopMatrix();
@@ -717,8 +577,43 @@ void display()
     /////////////////////////////////////
     glFlush();
     glutSwapBuffers();
-    //glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void writeCloudToFile(char* name) {
+    cout << "Saving Point Cloud to File.\n";
+    std::ofstream fout("ptptCloudTest.ply");
+
+    fout << "ply\n";
+    fout << "format ascii 1.0\n";
+    fout << "comment made by Oswaldo Ferro\n";
+    fout << "comment This contains a Point Cloud\n";
+    fout << "element vertex " << validPtCount << "\n";
+    fout << "property float x\n";
+    fout << "property float y\n";
+    fout << "property float z\n";
+    fout << "property uchar blue\n";
+    fout << "property uchar green\n";
+    fout << "property uchar red\n";
+    fout << "end_header\n";
+
+
+    int negatives = 50;
+    for (int row = 0; row < pointMat.size().height; row++)
+    {
+        for (int col = 0; col < pointMat.size().width; col++)
+        {
+            if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000) {
+                Point3f pt(pointMat.at<Point3f>(row, col).x*scaleDown - 0, pointMat.at<Point3f>(row, col).y*scaleDown - 0, pointMat.at<Point3f>(row, col).z*scaleDown - negatives);
+                int colour[3] = { cimgL.at<Vec3b>(row, col)[0], cimgL.at<Vec3b>(row, col)[1], cimgL.at<Vec3b>(row, col)[2] };
+                fout <<pt.x << " " << pt.y << " " << pt.z
+                     << " " << colour[0] << " " << colour[1] << " " << colour[2]
+                     << "\r\n";
+            }
+        }
+    }
+
+    fout.close();
+    cout << "Point Cloud Saved to File.\n";
 }
 
 void mainLoop() {
@@ -798,19 +693,13 @@ void mainLoop() {
 
                                                               //Use background screenshot to improve disparity map
     if (useRealBackground) {
-        //cvtColor(realBackground, realBackground, CV_BGR2HSV);
-        //cvtColor(cimgL, cimgL, CV_BGR2HSV);
-
         absdiff(realBackground, cimgL, diff_BG_FG);
-        //cvtColor(cimgL, cimgL, CV_HSV2BGR);
+
         cvtColor(diff_BG_FG, diff_BG_FG, COLOR_BGR2GRAY);
         threshold(diff_BG_FG, diff_BG_FG, 10, 200, THRESH_BINARY);
-        //imshow("thresh-before", thresh);
+
         erode(diff_BG_FG, diff_BG_FG, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5)));
         thresh += diff_BG_FG;
-        //thresh = diff_BG_FG.clone();
-        //imshow("thresh-after", thresh);
-        //imshow("DIFFERENCE", diff_BG_FG);
     }
 
     //Find Superpixels
@@ -826,6 +715,7 @@ void mainLoop() {
         imshow("Superpixels!", superpixelatedImg);
         imshow("Thresh", thresh);
         imshow("cimgL", cimgL);
+        imshow("disp8U NEW", disp8U_filtered);
 
         //For comparison purposes only
         //Old version of masking
@@ -839,10 +729,8 @@ void mainLoop() {
     waitKey(30);
 
     if (show3D) {
-        //drawPointCloud();
         display();
     }
-    //ModelWindow.spinOnce(30);
 
     //SAVE DEBUG IMAGES
     if (saveDebugImgs) {
@@ -887,34 +775,10 @@ void mainLoop() {
         useRealBackground = true;
         break;
 
-    case 'c':  //GENERATES POINT CLOUD
-        if (show3D) {
-            show3D = false;
-            printf("show3D is now false");
-        }
-        else {
-            show3D = true;
-            printf("show3D is now true");
-        }
+    case 'c':  //SAVES POINT CLOUD TO .OBJ FILE
+        writeCloudToFile("pointCloud");
 
-        if (PointWriter.isOpened() && !pointMat.empty()) {
-            //cout << "Channels: " << pointMat.channels();
-            //PointWriter << "PointMat" << pointMat;
-            //imwrite("pointMat.jpg", pointMat);
 
-            /*for (int col = 0; col < pointMat.cols; col++) {
-            for (int row = 0; row < pointMat.rows; row++) {
-            pointMat
-            }
-            }*/
-
-            cout << "DID NOT SAVE THIS IS EMPTY!!!\n";
-        }
-        else {
-            printf("Unable to open PointWriter file || pointMat is empty\n");
-            break;
-        }
-        //cout << pointMat;
         PointWriter.release();
         printf("Point cloud has been saved!\n");
         break;
@@ -961,7 +825,7 @@ void init_openGL(int argc, char** argv) {
     glPointSize(10);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(60, 1.333, 0.01, 100);
+    gluPerspective(48, 1.333, 0.01, 100);
     glRotatef(180, 0, 0, 1);
     glRotatef(180, 0, 1, 0);
     glTranslatef(0, 0, 20);
