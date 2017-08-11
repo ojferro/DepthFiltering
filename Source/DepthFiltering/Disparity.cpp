@@ -118,7 +118,7 @@ int FAR_AVG_THRESH = 82;
 
 Size imageSize;
 
-const bool webcam = true;
+const bool webcam = false;
 bool postProcess = true;
 const bool preProcess = true;
 const bool showDebugImgs = true;
@@ -887,6 +887,8 @@ int main(int argc, char** argv) {
             return -1;
         }
         imageSize = cimgL.size();
+        FRAME_WIDTH = imageSize.width;
+        FRAME_HEIGHT = imageSize.height;
     }
     else {
         if (init_PointGrey()) {
