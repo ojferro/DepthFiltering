@@ -462,8 +462,6 @@ void preProc() {
     equalizeHist(crL, crL);
     equalizeHist(crR, crR);
 
-    imshow("Eq", crL);
-
     //Double contrast to improve disp. performance
     //crL.convertTo(crL, -1, 2, 0);
     //crR.convertTo(crR, -1, 2, 0);
@@ -607,7 +605,7 @@ void writeCloudToFile(char* name) {
                 int colour[3] = { cimgL.at<Vec3b>(row, col)[0], cimgL.at<Vec3b>(row, col)[1], cimgL.at<Vec3b>(row, col)[2] };
                 fout <<pt.x << " " << pt.y << " " << pt.z
                      << " " << colour[0] << " " << colour[1] << " " << colour[2]
-                     << "\r\n";
+                     << "\n";
             }
         }
     }
@@ -659,15 +657,13 @@ void mainLoop() {
     else {
         cimgL = imread(imgLfn, IMREAD_COLOR);
         cimgR = imread(imgRfn, IMREAD_COLOR);
-        imshow("L", cimgL);
-        waitKey(30);
     }
-
-
-    //FIND DISPARITY
 
     imshow("L", cimgL);
     waitKey(30);
+
+    //FIND DISPARITY
+
     ////////////Displaying Rectified Images side by side (debugging)/////////
     /*Mat H;
     hconcat(cimgL, cimgR, H);
@@ -854,19 +850,23 @@ int main(int argc, char** argv) {
     CommandLineParser parser(argc, argv, "{w|9|}{h|6|}{s|1.0|}{nr||}{help||}{@input|../data/stereo_calib.xml|}{iL|Images/meL-1meter.png|}{iR|Images/meR-1meter.png|}{fakeBackground|Images/moonBackground1.jpg|}");
     imgLfn = parser.get<string>("iL");
     imgRfn = parser.get<string>("iR");
+
+    //Read in images for background comparison
     String fakeBackgroundImgfn = parser.get<string>("fakeBackground");
     if (fakeBackgroundImgfn == "none")
         useFakeBackground = false;
     if (cvHaveImageReader("DebugImgs/background.bmp")) {
-        //useRealBackground = true;
         realBackground = imread("DebugImgs/background.bmp", IMREAD_COLOR);
     }
+
     //Read in intrinsic and extrinsic matrices from calibration    
     if (!readMats())
         return false;
+
     //Initialize disparity parameters
     init_sbm();
 
+    //Initialize OpenGL for the Pt. Cloud 3D rendering
     if (show3D) {
         init_openGL(argc, argv);
     }
@@ -949,11 +949,14 @@ int main(int argc, char** argv) {
 
     //MAIN LOOP: Read, Find Disp, Superpixellate, Filter, Display 3D
 
-    printf("===============================\n");
-    printf("Capture Paused - Press 'p' to continue capturing\n");
-    PointGreyCam->stop_capture();
-    PointGreyCam2->stop_capture();
-    paused = true;
+    if (webcam) {   //Start with a paused frame
+        printf("===============================\n");
+        printf("Capture Paused - Press 'p' to continue capturing\n");
+        PointGreyCam->stop_capture();
+        PointGreyCam2->stop_capture();
+        paused = true;
+    }
+
     while (true) {
         mainLoop();
         //glutMainLoop();
