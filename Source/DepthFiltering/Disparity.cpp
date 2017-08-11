@@ -17,10 +17,10 @@
 #include "point_grey_cam.h"
 #include "point_grey_sim.h"
 #include <GL/glew.h>
-#include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
+//#include <GLFW/glfw3.h>
+//#include <glm/glm.hpp>
+//#include <glm/gtc/matrix_transform.hpp>
+//#include <glm/gtc/type_ptr.hpp>
 #include <Windows.h>
 
 using namespace cv;
@@ -268,7 +268,7 @@ int validateNDisp() {
 
 }
 
-void init_sbm() {
+void init_sbm(int, void*) {
     sbm->setPreFilterCap(preFilterCap == 0 ? preFilterCap + 1 : preFilterCap);    //must be > 0
     sbm->setPreFilterType(preFilterType);
     //if (preFilterType==0)
@@ -287,6 +287,7 @@ void init_sbm() {
 void maskingTrackbars() {//TODO: Make a function that calculates the parameters based on a min and max DISTANCE from the camera.
     String windowName = "MaskingTrackbars";
     namedWindow(windowName, 0);
+    resizeWindow(windowName, 400, 300);
 
     createTrackbar("H_MIN", windowName, &H_MIN, H_MAX, NULL);
     createTrackbar("H_MAX", windowName, &H_MAX, H_MAX, NULL);
@@ -300,24 +301,25 @@ void maskingTrackbars() {//TODO: Make a function that calculates the parameters 
 void disparityTrackbars() {
     String windowName = "DisparityTrackbars";
     namedWindow(windowName, 0);
+    resizeWindow(windowName, 400, 600);
 
-    createTrackbar("PFCap", windowName, &preFilterCap, 63, NULL);
-    createTrackbar("PFType", windowName, &preFilterType, 1, NULL);
-    createTrackbar("PFSize", windowName, &preFilterSize, 256, NULL);
-    createTrackbar("Min Disp", windowName, &minDisparity, 256, NULL);
-    createTrackbar("Tex Thres", windowName, &textureThreshold, 1024, NULL);
-    createTrackbar("UnniqRatio", windowName, &uniquenessRatio, 64, NULL);
-    createTrackbar("SpeckWinSz", windowName, &speckleWindowSize, 256, NULL);
-    createTrackbar("SpeckRange", windowName, &speckleRange, 256, NULL);
-    createTrackbar("DispMDiff", windowName, &disp12MaxDiff, 256, NULL);
-    createTrackbar("nDisp", windowName, &ndisparities, 256, NULL);
-    createTrackbar("SADWin", windowName, &SADWindowSize, 255, NULL);
+    createTrackbar("PFCap", windowName, &preFilterCap, 63, init_sbm);
+    createTrackbar("PFType", windowName, &preFilterType, 1, init_sbm);
+    createTrackbar("PFSize", windowName, &preFilterSize, 256, init_sbm);
+    createTrackbar("Min Disp", windowName, &minDisparity, 256, init_sbm);
+    createTrackbar("Tex Thres", windowName, &textureThreshold, 1024, init_sbm);
+    createTrackbar("UnniqRatio", windowName, &uniquenessRatio, 64, init_sbm);
+    createTrackbar("SpeckWinSz", windowName, &speckleWindowSize, 256, init_sbm);
+    createTrackbar("SpeckRange", windowName, &speckleRange, 256, init_sbm);
+    createTrackbar("DispMDiff", windowName, &disp12MaxDiff, 256, init_sbm);
+    createTrackbar("nDisp", windowName, &ndisparities, 256, init_sbm);
+    createTrackbar("SADWin", windowName, &SADWindowSize, 255, init_sbm);
 }
 
 void threshTrackbars() {
     String windowName = "ThreshTrackbars";
     namedWindow(windowName, 0);
-
+    resizeWindow(windowName, 400, 200);
     createTrackbar("CLOSE_THRESH", windowName, &CLOSE_THRESH, 255, NULL);
     createTrackbar("FAR_THRESH", windowName, &FAR_THRESH, 255, NULL);
     createTrackbar("FAR_AVG_THRESH", windowName, &FAR_AVG_THRESH, 255, NULL);
@@ -329,6 +331,8 @@ void superPixelTrackbars() {
     String windowName = "superPX Trackbars";
 
     namedWindow(windowName, 0);
+    resizeWindow(windowName, 400, 400);
+
     createTrackbar("numSuperpx", windowName, &numSuperpixels, 1000, NULL);
     createTrackbar("numLevels", windowName, &numLevels, 100, NULL);
     createTrackbar("prior", windowName, &prior, 10, NULL);
@@ -342,7 +346,7 @@ void pointCloudTrackbars() {
     String windowName = "Pt. Cloud Trackbars";
 
     namedWindow(windowName, 0);
-
+    resizeWindow(windowName, 400, 200);
     createTrackbar("X", windowName, &xPtCloud, 1000, NULL);
     createTrackbar("Y", windowName, &yPtCloud, 1000, NULL);
     createTrackbar("Z", windowName, &zPtCloud, 1000, NULL);
@@ -864,7 +868,7 @@ int main(int argc, char** argv) {
         return false;
 
     //Initialize disparity parameters
-    init_sbm();
+    init_sbm(1, nullptr);
 
     //Initialize OpenGL for the Pt. Cloud 3D rendering
     if (show3D) {
