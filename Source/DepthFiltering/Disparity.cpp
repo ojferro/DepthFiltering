@@ -118,7 +118,7 @@ int FAR_AVG_THRESH = 82;
 
 Size imageSize;
 
-const bool webcam = false;
+const bool webcam = true;
 bool postProcess = true;
 const bool preProcess = true;
 const bool showDebugImgs = true;
