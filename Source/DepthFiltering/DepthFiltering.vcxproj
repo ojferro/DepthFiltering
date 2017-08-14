@@ -109,7 +109,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>FlyCapture2.lib;freeglut.lib;glew32.lib;GL_Utils.lib;PointGrey.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>FlyCapture2.lib;freeglut.lib;glew32.lib;GL_Utils.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\..\..\Vendor\PointGrey\x64\Debug\;$(SolutionDir)\..\..\Vendor\FlyCapture2-2.10.3\lib64\;$(SolutionDir)\..\..\Vendor\glew-2.0.0\lib\Release\x64\;$(SolutionDir)\..\..\Vendor\GL_Utils\x64\Release\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>

@@ -12,7 +12,7 @@
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>D:\opengl_root\libs;D:\opencv_root\build_opencv64\lib\Release;D:\Interaptix\Vendor\freeglut-3.0.0\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>opencv_world320.lib;freeglut.lib;glew32.lib;glew32s.lib;glfw3.lib;glfw3dll.lib;OpenGL32.Lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opencv_world320.lib;freeglut.lib;glew32.lib;glew32s.lib;glfw3.lib;glfw3dll.lib;OpenGL32.Lib;PointGrey.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup />

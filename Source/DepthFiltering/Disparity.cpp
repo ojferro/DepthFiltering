@@ -17,10 +17,6 @@
 #include "point_grey_cam.h"
 #include "point_grey_sim.h"
 #include <GL/glew.h>
-//#include <GLFW/glfw3.h>
-//#include <glm/glm.hpp>
-//#include <glm/gtc/matrix_transform.hpp>
-//#include <glm/gtc/type_ptr.hpp>
 #include <Windows.h>
 
 using namespace cv;
@@ -127,7 +123,7 @@ const bool realCameras = false;
 
 const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
 const String EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
-char* PATH_TO_VIDEOS = "Videos/";
+char* PATH_TO_VIDEOS = "video/active/";
 int MAT_CONVERSION_CHANNELS = CV_8UC1;
 
 //Saving Debug Imgs
@@ -193,6 +189,16 @@ void endProgram() {
     waitKey(0);
 }
 
+void start_capture(ICamera* cam)
+{
+    cam->set_trigger_mode(false);
+}
+
+void stop_capture (ICamera* cam)
+{
+    cam->set_trigger_mode(true);
+}
+
 
 int init_PointGrey()
 {
@@ -203,7 +209,7 @@ int init_PointGrey()
     {
         printf("%d Cameras found. Opening the first one.\n", num_cameras);
         if (!realCameras) {
-            PointGreyCam = GigeManager->get_cam_from_index(0, "Videos/");
+            PointGreyCam = new point_grey_simulator(0, PATH_TO_VIDEOS);
             MAT_CONVERSION_CHANNELS = CV_8UC3;
         }
         else {
@@ -218,7 +224,7 @@ int init_PointGrey()
         PointGreyCam->set_white_balance(POINT_GREY_WHITE_BALANCE);
         FRAME_WIDTH = PointGreyCam->get_width();
         FRAME_HEIGHT = PointGreyCam->get_height();
-        PointGreyCam->start_capture();
+        start_capture(PointGreyCam);
         Sleep(10);
         cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\nFRAME HEIGHT" << FRAME_HEIGHT << endl;
     }
@@ -234,7 +240,7 @@ int init_PointGrey()
         printf("%d Cameras found. Opening the second one.\n", num_cameras);
 
         if (!realCameras) {
-            PointGreyCam2 = GigeManager->get_cam_from_index(1, "Videos/");
+            PointGreyCam2 = new point_grey_simulator(1, PATH_TO_VIDEOS);
         }
         else {
             PointGreyCam2 = GigeManager->get_cam_from_index(1);
@@ -245,7 +251,7 @@ int init_PointGrey()
         PointGreyCam2->set_exposure_ms(POINT_GREY_EXPOSURE);
         PointGreyCam2->set_gain_db(POINT_GREY_GAIN);
         PointGreyCam2->set_white_balance(POINT_GREY_WHITE_BALANCE);
-        PointGreyCam2->start_capture();
+        start_capture(PointGreyCam);
         Sleep(10);
     }
     Sleep(100);
@@ -553,7 +559,7 @@ void display()
     glColor3ub(0, 100, 0);
     glutSolidSphere(0.5, 20, 20);
 
-    glBegin(GL_POINTS); // render with points
+    glBegin(GL_POINTS); // Render with points
 
     drawPointCloud();
 
@@ -576,14 +582,13 @@ void display()
     glPopAttrib();
 
     glEnd();
-    /////////////////////////////////////
     glFlush();
     glutSwapBuffers();
 }
 
 void writeCloudToFile(char* name) {
     cout << "Saving Point Cloud to File.\n";
-    std::ofstream fout("ptptCloudTest.ply");
+    std::ofstream fout("PointCloud.ply");
 
     fout << "ply\n";
     fout << "format ascii 1.0\n";
@@ -637,7 +642,6 @@ void mainLoop() {
 
         if (imgBayerL.empty() || imgBayerR.empty()) {
             cout << "End of video file reached. Exiting...\n";
-            waitKey(0);
             return;
         }
 
@@ -662,9 +666,6 @@ void mainLoop() {
         cimgL = imread(imgLfn, IMREAD_COLOR);
         cimgR = imread(imgRfn, IMREAD_COLOR);
     }
-
-    imshow("L", cimgL);
-    waitKey(30);
 
     //FIND DISPARITY
 
@@ -691,7 +692,7 @@ void mainLoop() {
     //threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);    //Close cut-off plane
     threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);//THRESH_BINARY);// | THRESH_OTSU);    //The far plane is omitted if using OTSU flag
 
-                                                              //Use background screenshot to improve disparity map
+    //Use background screenshot to improve disparity map
     if (useRealBackground) {
         absdiff(realBackground, cimgL, diff_BG_FG);
 
@@ -754,14 +755,14 @@ void mainLoop() {
 
     case 's':    //STEP THROUGH PAUSED VIDEO
         printf("Stepping into next frame...");
-        PointGreyCam->start_capture();
-        PointGreyCam2->start_capture();
+        start_capture(PointGreyCam);
+        start_capture(PointGreyCam2);
 
         rawL = PointGreyCam->get_raw_data_force_update();
         rawR = PointGreyCam2->get_raw_data_force_update();
 
-        PointGreyCam->stop_capture();
-        PointGreyCam2->stop_capture();
+        stop_capture(PointGreyCam);
+        stop_capture(PointGreyCam2);
 
         break;
 
@@ -775,7 +776,7 @@ void mainLoop() {
         useRealBackground = true;
         break;
 
-    case 'c':  //SAVES POINT CLOUD TO .OBJ FILE
+    case 'c':  //SAVES POINT CLOUD TO .PLY FILE
         writeCloudToFile("pointCloud");
 
 
@@ -793,15 +794,15 @@ void mainLoop() {
         if (!paused) {
             printf("===============================\n");
             printf("Capture Paused - Press 'p' to continue capturing\n");
-            PointGreyCam->stop_capture();
-            PointGreyCam2->stop_capture();
+            stop_capture(PointGreyCam);
+            stop_capture(PointGreyCam2);
             paused = true;
         }
         else {
             printf("===============================\n");
             printf("Resuming Capture...\n");
-            PointGreyCam->start_capture();
-            PointGreyCam2->start_capture();
+            start_capture(PointGreyCam);
+            start_capture(PointGreyCam2);
             paused = false;
         }
         break;
@@ -818,7 +819,6 @@ void init_openGL(int argc, char** argv) {
     glutCreateWindow("PointCloud");
 
     //////////////////////////////////////////////////
-    //init
     glClearColor(1.0, 1.0, 1.0, 0.0);
 
     glColor3f(0.0, 1.0, 0.0);
@@ -947,25 +947,19 @@ int main(int argc, char** argv) {
         fakeBackgroundImg = fakeBackgroundImg(newRoi);
     }
     //////////////////////////////////////////////////////////
-   
-    //disp16S.convertTo(disp32f, CV_32FC3);
-    //
-    //reprojectImageTo3D(disp32f, pointMat, Q, true, -1); //pointMat type: CV_32FC3, pointMat channels: 3
-    //cloudWidget = viz::WCloud(pointMat, viz::Color::green());
 
     //MAIN LOOP: Read, Find Disp, Superpixellate, Filter, Display 3D
 
     if (webcam) {   //Start with a paused frame
         printf("===============================\n");
         printf("Capture Paused - Press 'p' to continue capturing\n");
-        PointGreyCam->stop_capture();
-        PointGreyCam2->stop_capture();
+        stop_capture(PointGreyCam);
+        stop_capture(PointGreyCam2);
         paused = true;
     }
 
     while (true) {
         mainLoop();
-        //glutMainLoop();
     }
 
     cout << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
