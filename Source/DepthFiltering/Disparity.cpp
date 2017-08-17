@@ -194,7 +194,7 @@ void start_capture(ICamera* cam)
     cam->set_trigger_mode(false);
 }
 
-void stop_capture (ICamera* cam)
+void stop_capture(ICamera* cam)
 {
     cam->set_trigger_mode(true);
 }
@@ -270,7 +270,7 @@ int validateSAD(int sad) {
 }
 
 int validateNDisp() {
-    return (ndisparities % 16 == 0) ? ndisparities : (round(ndisparities / 16.0) * 16); 
+    return (ndisparities % 16 == 0) ? ndisparities : (round(ndisparities / 16.0) * 16);
 
 }
 
@@ -281,9 +281,9 @@ void init_sbm(int, void*) {
     //    sbm->setPreFilterSize(preFilterSize);    //must be odd number
     sbm->setMinDisparity(-minDisparity);
     sbm->setTextureThreshold(textureThreshold);
-    sbm->setUniquenessRatio (uniquenessRatio);
-    sbm->setSpeckleWindowSize (speckleWindowSize);
-    sbm->setSpeckleRange (speckleRange);
+    sbm->setUniquenessRatio(uniquenessRatio);
+    sbm->setSpeckleWindowSize(speckleWindowSize);
+    sbm->setSpeckleRange(speckleRange);
     sbm->setDisp12MaxDiff(disp12MaxDiff);
     sbm->setNumDisparities(validateNDisp());
     sbm->setSmallerBlockSize(validateSAD(SADWindowSizeChange));
@@ -363,12 +363,12 @@ void pointCloudTrackbars() {
 void superpixels() {
     seeds = ximgproc::createSuperpixelSLIC(cimgL, ximgproc::SLIC, ((regionSize>0) ? regionSize : regionSize + 1), ruler);
     //seeds->enforceLabelConnectivity(1);
-    
+
     cout << "Starting iterations" << endl;
     seeds->iterate(numIterations);
     seeds->getLabels(labels);
     seeds->getLabelContourMask(superpixelEdges, false);
-    
+
     //////////////////////////////////////////////////////////////////
     //To show the superpixelated img. Only needed for debug purposes//
     superpixelatedImg = cimgL.clone();
@@ -408,7 +408,7 @@ void findDisparity(Mat Limg, Mat Rimg) {
 
     ///////////////////////////////
     //Mat disp16S_2, disp8U_2, diff;
-   /* Mat disp8U_orig, disp8U_2_orig;*/
+    /* Mat disp8U_orig, disp8U_2_orig;*/
     //Mat disp8U_crop, disp8U_2_crop;
 
     //cv::flip(Limg, Limg, 1);
@@ -436,7 +436,7 @@ void findDisparity(Mat Limg, Mat Rimg) {
     //waitKey(30);
 }
 
-bool readMats(){
+bool readMats() {
     FileStorage fsIntr(INTRINSICS_FILE_PATH, FileStorage::READ);
     FileStorage fsExtr(EXTRINSICS_FILE_PATH, FileStorage::READ);
 
@@ -468,7 +468,7 @@ void preProc() {
 
     GaussianBlur(crL, crL, Size(3, 3), 0, 0, BORDER_DEFAULT);
     GaussianBlur(crR, crR, Size(3, 3), 0, 0, BORDER_DEFAULT);
-    
+
     equalizeHist(crL, crL);
     equalizeHist(crR, crR);
 
@@ -477,14 +477,14 @@ void preProc() {
     //crR.convertTo(crR, -1, 2, 0);
 }
 
-void postProc (){
+void postProc() {
     //imshow("BEFOREBEFORE", disp16S);
     //filterSpeckles(disp16S, 0, 5, 4);
     //imshow("AFTERAFTER", disp16S);
     //Mat temp, kernel;
     /*erode(thresh, temp, kernel);
     dilate(temp, thresh, kernel);*/
-    
+
     //medianBlur(thresh, thresh, 5);        ///Works the best
     //GaussianBlur(thresh, thresh, Size(5, 5), 75, 0, 4);
     //morphologyEx(thresh, thresh, MORPH_GRADIENT, getStructuringElement(MORPH_RECT, Size(7, 7)));
@@ -493,20 +493,20 @@ void postProc (){
     //Mat temp; 
     //bilateralFilter(thresh, temp, 5, 75, 75);
     //imshow("Temp", temp);
-    
+
 }
 
 void renderScene() {
 
     glMatrixMode(GL_PROJECTION);
-    glRotatef(currentAngle-angle, 0, 1, 0);
+    glRotatef(currentAngle - angle, 0, 1, 0);
     glMatrixMode(GL_MODELVIEW);
 }
 
 void mouseControl(int button, int _x, int _y) {
     if (button == GLUT_LEFT_BUTTON) {
-        angle = (_x - xOrigin) * (180.0/ FRAME_WIDTH);  // *180.0/FRAME_WIDTH maps the delta X to a corresponding angle
-                                                        //given that left of screen = -90 deg, and right part = 90 deg
+        angle = (_x - xOrigin) * (180.0 / FRAME_WIDTH);  // *180.0/FRAME_WIDTH maps the delta X to a corresponding angle
+                                                         //given that left of screen = -90 deg, and right part = 90 deg
 
         if (angle > 90)
             angle = 90;
@@ -536,7 +536,7 @@ void display()
         ScreenToClient(WindowFromDC(wglGetCurrentDC()), &p);
 
         button = (GetKeyState(VK_LBUTTON) & 0x100) ? GLUT_LEFT_BUTTON : -1;
-       
+
 
         int _x = p.x;
         int _y = p.y;
@@ -571,13 +571,13 @@ void display()
         {
             if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000) {
                 Point3f pt(pointMat.at<Point3f>(row, col).x*scaleDown - 0, pointMat.at<Point3f>(row, col).y*scaleDown - 0, pointMat.at<Point3f>(row, col).z*scaleDown - negatives);
-                glColor3ub (cimgL.at<Vec3b>(row, col)[2], cimgL.at<Vec3b>(row, col)[1], cimgL.at<Vec3b>(row, col)[0]);
-                glVertex3f (pointMat.at<Point3f>(row, col).x*scaleDown - 0, pointMat.at<Point3f>(row, col).y*scaleDown - 0, pointMat.at<Point3f>(row, col).z*scaleDown - negatives);
+                glColor3ub(cimgL.at<Vec3b>(row, col)[2], cimgL.at<Vec3b>(row, col)[1], cimgL.at<Vec3b>(row, col)[0]);
+                glVertex3f(pointMat.at<Point3f>(row, col).x*scaleDown - 0, pointMat.at<Point3f>(row, col).y*scaleDown - 0, pointMat.at<Point3f>(row, col).z*scaleDown - negatives);
                 validPtCount++;
             }
         }
     }
-    
+
     glPopMatrix();
     glPopAttrib();
 
@@ -612,9 +612,9 @@ void writeCloudToFile(char* name) {
             if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000) {
                 Point3f pt(pointMat.at<Point3f>(row, col).x*scaleDown - 0, pointMat.at<Point3f>(row, col).y*scaleDown - 0, pointMat.at<Point3f>(row, col).z*scaleDown - negatives);
                 int colour[3] = { cimgL.at<Vec3b>(row, col)[0], cimgL.at<Vec3b>(row, col)[1], cimgL.at<Vec3b>(row, col)[2] };
-                fout <<pt.x << " " << pt.y << " " << pt.z
-                     << " " << colour[0] << " " << colour[1] << " " << colour[2]
-                     << "\n";
+                fout << pt.x << " " << pt.y << " " << pt.z
+                    << " " << colour[0] << " " << colour[1] << " " << colour[2]
+                    << "\n";
             }
         }
     }
@@ -623,15 +623,26 @@ void writeCloudToFile(char* name) {
     cout << "Point Cloud Saved to File.\n";
 }
 
-void mainLoop() {
-    if (webcam) { 
+bool mainLoop() {
+    if (webcam) {
         ////READ
-        rawL = PointGreyCam->get_raw_data_force_update();
-        rawR = PointGreyCam2->get_raw_data_force_update();
+
+        if (PointGreyCam->get_raw_data_force_update() != NULL) {
+            rawL = PointGreyCam->get_raw_data_force_update();
+            rawR = PointGreyCam2->get_raw_data_force_update();
+        }
+        else {
+            cout << "NullPtr when accessing next frame. EOF?";
+            waitKey(2000);
+            endProgram();
+            return false;
+        }
+
+
         if (rawL == NULL || rawR == NULL) {
             cout << "Failed to read raw";
             endProgram();
-            return;
+            return false;
             waitKey(0);
         }
 
@@ -642,7 +653,7 @@ void mainLoop() {
 
         if (imgBayerL.empty() || imgBayerR.empty()) {
             cout << "End of video file reached. Exiting...\n";
-            return;
+            return false;
         }
 
         if (imgBayerL.channels() == 1) {
@@ -692,7 +703,7 @@ void mainLoop() {
     //threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);    //Close cut-off plane
     threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);//THRESH_BINARY);// | THRESH_OTSU);    //The far plane is omitted if using OTSU flag
 
-    //Use background screenshot to improve disparity map
+                                                              //Use background screenshot to improve disparity map
     if (useRealBackground) {
         absdiff(realBackground, cimgL, diff_BG_FG);
 
@@ -750,7 +761,7 @@ void mainLoop() {
     switch (key) {
     case ESC_KEY:    //END PROGRAM
         endProgram();
-        return;
+        return false;
         break;
 
     case 's':    //STEP THROUGH PAUSED VIDEO
@@ -808,6 +819,7 @@ void mainLoop() {
         break;
     }
     //////////////////////////////////////////////////////////User input - end
+    return true;
 }
 
 void init_openGL(int argc, char** argv) {
@@ -896,13 +908,13 @@ int main(int argc, char** argv) {
             waitKey(0);
             return 1;
         }
-        
+
         disp16S = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_16S);
         disp8U = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1);
 
         PointGreyCam->set_trigger_mode(false);
         PointGreyCam2->set_trigger_mode(false);
-        
+
         //Initial read/demosaic
         do {
             rawL = PointGreyCam->get_raw_data_force_update();
@@ -926,7 +938,7 @@ int main(int argc, char** argv) {
         if (!cimgR.empty() && cimgL.size() == cimgR.size())
             imageSize = cimgL.size();
     }
-    
+
     //DISPLAYS TRACKBARS
     //maskingTrackbars();
     disparityTrackbars();
@@ -941,14 +953,14 @@ int main(int argc, char** argv) {
 
     newRoi = roiL & roiR;    //Intersection of both ROIs
 
-    /////////////////////Background Img///////////////////////
+                             /////////////////////Background Img///////////////////////
     if (useFakeBackground) {
         fakeBackgroundImg = imread(fakeBackgroundImgfn, IMREAD_COLOR);
         fakeBackgroundImg = fakeBackgroundImg(newRoi);
     }
     //////////////////////////////////////////////////////////
 
-    //MAIN LOOP: Read, Find Disp, Superpixellate, Filter, Display 3D
+    //MAIN LOOP: Read, Find Disp, Superpixelate, Filter, Display 3D
 
     if (webcam) {   //Start with a paused frame
         printf("===============================\n");
@@ -958,15 +970,20 @@ int main(int argc, char** argv) {
         paused = true;
     }
 
-    while (true) {
-        mainLoop();
+    if (webcam) {
+        while (mainLoop()) {}
+    }
+    else {
+        if (true) {
+            mainLoop();
+        }
     }
 
     cout << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
-         << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
-         << "\n~~~~~~~~~~~~~~~~~~~~~~~END OF PROGRAM~~~~~~~~~~~~~~~~~~~~~~"
-         << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
-         << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
-         << "\nExiting...";
-    Sleep (3000);
+        << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
+        << "\n~~~~~~~~~~~~~~~~~~~~~~~END OF PROGRAM~~~~~~~~~~~~~~~~~~~~~~"
+        << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
+        << "\n=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+="
+        << "\nExiting...";
+    Sleep(3000);
 }
