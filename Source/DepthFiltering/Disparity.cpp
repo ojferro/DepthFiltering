@@ -1,16 +1,12 @@
 ﻿//Oswaldo Ferro - Interaptix
 
-#include <opencv2/stereo/stereo.hpp>
 #include <opencv2/core/core.hpp>
 #include "opencv2/calib3d/calib3d.hpp"
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/calib3d.hpp>
-#include <stdio.h>
 #include <iostream>
 #include <fstream>
 #include <iomanip>
-#include <opencv2/aruco.hpp>
 #include <opencv2/ximgproc.hpp>
 #include <opencv2/ximgproc/seeds.hpp>
 #include <opencv2/ximgproc/disparity_filter.hpp>
@@ -30,20 +26,94 @@ using namespace std;
 
 #define ESC_KEY 27
 
+#pragma region GlobalVariables
+
 /////////////////////GLOBAL VARIABLES//////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
+
+//////////////////////Trackbars//////////////////////////
+/////////////////////////////////////////////////////////
+
+///////////Masking Trackbar Variables///////////
+int H_MIN = 3;
+int H_MAX = 256;
+int S_MIN = 0;
+int S_MAX = 256;
+int V_MIN = 43;
+int V_MAX = 111;
+
+///////////Disparity Trackbar Variables///////////
+int ndisparities = 128;
+int SADWindowSize = 9;
+int SADWindowSizeChange = SADWindowSize;
+int minDisparity = 68;              //The negative is accounteed for later on (i.e. for minDisp of -60, initialize to 60)
+int preFilterCap = 30;
+int preFilterType = 1;
+int preFilterSize = 40;
+int textureThreshold = 168;
+int uniquenessRatio = 1;
+int speckleWindowSize = 12;
+int speckleRange = 256;
+int disp12MaxDiff = 0;
+
+///////////PointCloud Trackbar Variables///////////
+int xPtCloud = 500, yPtCloud = 500, zPtCloud = 500;
+int scale = 1;
+float scaleDown = 1;
+/////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
+
+///////////Hyperparameters///////////
+const bool video = true;
+const bool liveCameras = true;
+const bool postProcess = false;
+const bool preProcess = true;
+const bool showDebugImgs = true;
+const bool saveDebugImgs = true;
+
+///////////Background///////////
 Mat fakeBackgroundImg;
-bool useFakeBackground = true;
+bool useFakeBackground = true;      //Fake background is the image that the background is replaced with (e.g. the Moon).
 Mat realBackground;
-Mat diff_BG_FG; //differences between the background and the foreground
-bool useRealBackground = false;
+Mat diff_BG_FG;                     //Differences between the background and the foreground.
+bool backgroundComparison = false;   //Find differences between a saved background image and the current frame to fill holes in disp. map.
+
+///////////Frames/Images///////////
+String imgLfn;
+String imgRfn;
+Size imageSize;
 
 uchar* rawL;
 uchar* rawR;
+Mat imgBayerL;
+Mat imgBayerR;
 Mat cimgL;
 Mat cimgR;
+Mat crL;                            //Preprocessed images before disparity
+Mat crR;
+char* PATH_TO_VIDEOS = "video/active/";
+int MAT_CONVERSION_CHANNELS = CV_8UC1;
+
+///////////Rectification & cropping///////////
+Mat rmap[2][2];
+Rect roiL, roiR, newRoi;
+
+///////////Disparity///////////
 Mat disp16S;
 Mat disp8U;
+Mat thresh;
+Mat thresh_3D;
+Mat threshTemp;
+Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
+
+//Depth filtering thresholds
+int CLOSE_THRESH = 255;
+int FAR_THRESH = 72;
+int FAR_AVG_THRESH = 82;
+
+///////////Camera Intrinsic and Extrinsic Mats///////////
+const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
+const String EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
 Mat M1;
 Mat M2;
 Mat D1;
@@ -56,33 +126,13 @@ Mat P1;
 Mat P2;
 Mat Q;
 
-Mat imgBayerL;
-Mat imgBayerR;
-
-Mat rmap[2][2];
-Rect roiL, roiR, newRoi;
-
-Mat crL;
-Mat crR;
-
-Mat maskedL;
-Mat maskedR;
-Mat thresh;
-Mat thresh_3D;
-Mat threshTemp;
-
-String imgLfn;
-String imgRfn;
-
-//3D reprojection
+///////////3D reprojection///////////
+bool show3D = true;                 //Display pointCloud
 FileStorage PointWriter("point_cloud.yml", FileStorage::WRITE);
 Mat pointMat;
 int validPtCount = 0;
 
-bool show3D = true;
-
-
-//For Superpixels/////////
+///////////Superpixels///////////
 int numSuperpixels = 500;
 int numLevels = 4;
 int prior = 2;
@@ -91,89 +141,39 @@ int numIterations = 6;
 int maxLabel;
 int regionSize = 75;
 int ruler = 50;
-
 Mat labels;
 Mat superpixelEdges;
 Mat labelMask;
-Mat superpixelatedImg;    //Debugging only (to show the superpixels on img. Not needed for ultimate purpose of program)
+Mat superpixelatedImg;              //Debugging only (to show the superpixels on img. Not needed for ultimate purpose of program)
 Mat filteredImg;
 Mat disp8U_filtered;
-
 Ptr<ximgproc::SuperpixelSLIC> seeds;
-//////////////////////////
 
-//For user input//
+///////////Point Grey Camera///////////
+point_grey_camera_manager * GigeManager = 0;
+ICamera * PointGreyCam = 0;
+ICamera * PointGreyCam2 = 0;
+int FRAME_WIDTH;
+int FRAME_HEIGHT;
+
+///////////User Input///////////
 char key = ' ';
 bool paused = false;
-////////////////////
 
-//Depth filtering thresholds
-int CLOSE_THRESH = 255;
-int FAR_THRESH = 72;    //61 works the best
-int FAR_AVG_THRESH = 82;
-
-Size imageSize;
-
-const bool webcam = true;
-bool postProcess = true;
-const bool preProcess = true;
-const bool showDebugImgs = true;
-const bool saveDebugImgs = false;
-const bool realCameras = false;
-
-const String INTRINSICS_FILE_PATH = "Data/intrinsics.yml";
-const String EXTRINSICS_FILE_PATH = "Data/extrinsics.yml";
-char* PATH_TO_VIDEOS = "video/active/";
-int MAT_CONVERSION_CHANNELS = CV_8UC1;
-
-//Saving Debug Imgs
+///////////Saving Debug Video///////////
 VideoWriter VWdisp8U;
 VideoWriter VWsuperpixelatedImg;
 VideoWriter VWthresh;
 
-//Point cloud mouse control
+///////////PointCloud Mouse Control///////////
 float angle = 0.0f;
 float currentAngle = 0.0f;
 int button = -1;
 int xOrigin = -1;
 
-//////////////////////Masking Trackbar Variables///////////////////////////////////////////
-int H_MIN = 3;
-int H_MAX = 256;
-int S_MIN = 0;
-int S_MAX = 256;
-int V_MIN = 43;
-int V_MAX = 111;
-//////////////////////Disparity Trackbar Variables/////////////////////////////////////////
-int ndisparities = 128;//128
-int SADWindowSize = 9;
-int SADWindowSizeChange = SADWindowSize;
-int minDisparity = 68;    //the negative is accounteed for later on (i.e. for minDisp of -60, initialize to 60)
-int preFilterCap = 30;
-int preFilterType = 1;
-int preFilterSize = 40;
-int textureThreshold = 168;
-int uniquenessRatio = 1;
-int speckleWindowSize = 12;
-int speckleRange = 256;
-int disp12MaxDiff = 0;
-
-//////////////////////PointCloud Trackbar Variables/////////////////////////////////////////
-
-int xPtCloud = 500, yPtCloud = 500, zPtCloud = 500;
-int scale = 1;
-float scaleDown = 1;
-
-////////////////////////////////Point Grey Cameras/////////////////////////////////////////
-point_grey_camera_manager * GigeManager = 0;
-ICamera * PointGreyCam = 0;
-ICamera * PointGreyCam2 = 0;
-
-int FRAME_WIDTH;
-int FRAME_HEIGHT;
 ///////////////////////////////////////////////////////////////////////////////////////////
-Ptr<StereoBM> sbm = StereoBM::create(ndisparities, SADWindowSize);
 ///////////////////////////////////////////////////////////////////////////////////////////
+#pragma endregion
 
 void endProgram() {
     VWthresh.release();
@@ -182,23 +182,13 @@ void endProgram() {
 
     delete PointGreyCam;
     delete PointGreyCam2;
+    delete GigeManager;
 
     destroyAllWindows();
 
     printf("Ending Program...");
     waitKey(0);
 }
-
-void start_capture(ICamera* cam)
-{
-    cam->set_trigger_mode(false);
-}
-
-void stop_capture(ICamera* cam)
-{
-    cam->set_trigger_mode(true);
-}
-
 
 int init_PointGrey()
 {
@@ -208,7 +198,7 @@ int init_PointGrey()
     if (num_cameras > 0)
     {
         printf("%d Cameras found. Opening the first one.\n", num_cameras);
-        if (!realCameras) {
+        if (!liveCameras) {
             PointGreyCam = new point_grey_simulator(0, PATH_TO_VIDEOS);
             MAT_CONVERSION_CHANNELS = CV_8UC3;
         }
@@ -224,7 +214,7 @@ int init_PointGrey()
         PointGreyCam->set_white_balance(POINT_GREY_WHITE_BALANCE);
         FRAME_WIDTH = PointGreyCam->get_width();
         FRAME_HEIGHT = PointGreyCam->get_height();
-        start_capture(PointGreyCam);
+        PointGreyCam->start_capture();
         Sleep(10);
         cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\nFRAME HEIGHT" << FRAME_HEIGHT << endl;
     }
@@ -239,7 +229,7 @@ int init_PointGrey()
     {
         printf("%d Cameras found. Opening the second one.\n", num_cameras);
 
-        if (!realCameras) {
+        if (!liveCameras) {
             PointGreyCam2 = new point_grey_simulator(1, PATH_TO_VIDEOS);
         }
         else {
@@ -251,7 +241,7 @@ int init_PointGrey()
         PointGreyCam2->set_exposure_ms(POINT_GREY_EXPOSURE);
         PointGreyCam2->set_gain_db(POINT_GREY_GAIN);
         PointGreyCam2->set_white_balance(POINT_GREY_WHITE_BALANCE);
-        start_capture(PointGreyCam);
+        PointGreyCam2->start_capture();
         Sleep(10);
     }
     Sleep(100);
@@ -259,7 +249,7 @@ int init_PointGrey()
 }
 
 
-int validateSAD(int sad) {
+int validateSAD(int sad) {  //SAD must be between 5 & 255, and must be an odd number
     if (sad < 5)
         return 5;
     else if (sad % 2 == 0 && sad < 255)
@@ -271,14 +261,13 @@ int validateSAD(int sad) {
 
 int validateNDisp() {
     return (ndisparities % 16 == 0) ? ndisparities : (round(ndisparities / 16.0) * 16);
-
 }
 
 void init_sbm(int, void*) {
     sbm->setPreFilterCap(preFilterCap == 0 ? preFilterCap + 1 : preFilterCap);    //must be > 0
     sbm->setPreFilterType(preFilterType);
     //if (preFilterType==0)
-    //    sbm->setPreFilterSize(preFilterSize);    //must be odd number
+    //    sbm->setPreFilterSize(preFilterSize);                                   //must be odd number
     sbm->setMinDisparity(-minDisparity);
     sbm->setTextureThreshold(textureThreshold);
     sbm->setUniquenessRatio(uniquenessRatio);
@@ -332,8 +321,6 @@ void threshTrackbars() {
 }
 
 void superPixelTrackbars() {
-    //int numSuperpixels = 500, numLevels = 4, prior = 2, histogramBins = 5, numIterations = 8, maxLabel;
-
     String windowName = "superPX Trackbars";
 
     namedWindow(windowName, 0);
@@ -403,10 +390,10 @@ void superpixels() {
 
 void findDisparity(Mat Limg, Mat Rimg) {
     //Parameters are set by calling init_sbm()
-    //sbm->setMinDisparity(-minDisparity);
     sbm->compute(Limg, Rimg, disp16S);
 
     ///////////////////////////////
+    //Attempt at cross validating matching pixel (L->R then R->L)
     //Mat disp16S_2, disp8U_2, diff;
     /* Mat disp8U_orig, disp8U_2_orig;*/
     //Mat disp8U_crop, disp8U_2_crop;
@@ -478,12 +465,11 @@ void preProc() {
 }
 
 void postProc() {
-    //imshow("BEFOREBEFORE", disp16S);
-    //filterSpeckles(disp16S, 0, 5, 4);
-    //imshow("AFTERAFTER", disp16S);
-    //Mat temp, kernel;
-    /*erode(thresh, temp, kernel);
-    dilate(temp, thresh, kernel);*/
+    imshow("BEFORE PREPROC", thresh);
+    
+    Mat temp, kernel;
+    erode(thresh, temp, kernel);
+    dilate(temp, thresh, kernel);
 
     //medianBlur(thresh, thresh, 5);        ///Works the best
     //GaussianBlur(thresh, thresh, Size(5, 5), 75, 0, 4);
@@ -493,10 +479,10 @@ void postProc() {
     //Mat temp; 
     //bilateralFilter(thresh, temp, 5, 75, 75);
     //imshow("Temp", temp);
-
+    imshow("AFTER PREPROC", thresh);
 }
 
-void renderScene() {
+void rotateCam() {
 
     glMatrixMode(GL_PROJECTION);
     glRotatef(currentAngle - angle, 0, 1, 0);
@@ -516,7 +502,7 @@ void mouseControl(int button, int _x, int _y) {
 }
 
 
-void drawPointCloud() {
+void generatePointCloud() {
     printf("Generating point cloud...\n");
 
     threshold(disp8U_filtered, thresh_3D, FAR_THRESH, 255, THRESH_TOZERO);
@@ -537,16 +523,14 @@ void display()
 
         button = (GetKeyState(VK_LBUTTON) & 0x100) ? GLUT_LEFT_BUTTON : -1;
 
-
         int _x = p.x;
         int _y = p.y;
         mouseControl(button, _x, _y);
         cout << "\n~~~~~~~~~~~~~~~~~~~~~\nButton:" << button << "  Angle: " << angle << "  _x: " << _x << "\n~~~~~~~~~~~~~~~~~~~~~\n";//<< "Y:" << state
-        renderScene();
+        rotateCam();
         currentAngle = angle;
     }
 
-    /////////////////////////////////////
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -561,16 +545,16 @@ void display()
 
     glBegin(GL_POINTS); // Render with points
 
-    drawPointCloud();
+    generatePointCloud();
 
     int negatives = 50;
     validPtCount = 0;
+    //Adding the point cloud to an OpenGL point buffer
     for (int row = 0; row < pointMat.size().height; row++)
     {
         for (int col = 0; col < pointMat.size().width; col++)
         {
             if (abs(pointMat.at<Point3f>(row, col).x) < 1000 && abs(pointMat.at<Point3f>(row, col).y) < 1000 && abs(pointMat.at<Point3f>(row, col).z) < 1000) {
-                Point3f pt(pointMat.at<Point3f>(row, col).x*scaleDown - 0, pointMat.at<Point3f>(row, col).y*scaleDown - 0, pointMat.at<Point3f>(row, col).z*scaleDown - negatives);
                 glColor3ub(cimgL.at<Vec3b>(row, col)[2], cimgL.at<Vec3b>(row, col)[1], cimgL.at<Vec3b>(row, col)[0]);
                 glVertex3f(pointMat.at<Point3f>(row, col).x*scaleDown - 0, pointMat.at<Point3f>(row, col).y*scaleDown - 0, pointMat.at<Point3f>(row, col).z*scaleDown - negatives);
                 validPtCount++;
@@ -624,9 +608,10 @@ void writeCloudToFile(char* name) {
 }
 
 bool mainLoop() {
-    if (webcam) {
-        ////READ
 
+    if (video) {    //If video is being used (live or pre-recorded)
+
+        ////READ
         if (PointGreyCam->get_raw_data_force_update() != NULL) {
             rawL = PointGreyCam->get_raw_data_force_update();
             rawR = PointGreyCam2->get_raw_data_force_update();
@@ -635,15 +620,8 @@ bool mainLoop() {
             cout << "NullPtr when accessing next frame. EOF?";
             waitKey(2000);
             endProgram();
-            return false;
-        }
-
-
-        if (rawL == NULL || rawR == NULL) {
-            cout << "Failed to read raw";
-            endProgram();
-            return false;
             waitKey(0);
+            return false;
         }
 
         ////DEMOSAIC
@@ -665,35 +643,22 @@ bool mainLoop() {
             imgBayerR.copyTo(cimgR);
         }
 
+        //RECTIFY
         remap(cimgL, cimgL, rmap[0][0], rmap[0][1], INTER_LINEAR);
         remap(cimgR, cimgR, rmap[1][0], rmap[1][1], INTER_LINEAR);
 
-        //Cropping to ROI size
+        //CROPPING TO ROI SIZE
         cimgL = cimgL(newRoi);
         cimgR = cimgR(newRoi);
 
     }
-    else {
+    else {  //If static images are being used
         cimgL = imread(imgLfn, IMREAD_COLOR);
         cimgR = imread(imgRfn, IMREAD_COLOR);
     }
 
     //FIND DISPARITY
 
-    ////////////Displaying Rectified Images side by side (debugging)/////////
-    /*Mat H;
-    hconcat(cimgL, cimgR, H);
-
-    int distBtwnLines = 20;
-    for (int l = 0; l < H.rows; l += distBtwnLines)
-    line(H, Point(0, l), Point(H.cols, l), Scalar(0, 0, 255));
-    rectangle(H, roiL, Scalar(0, 0, 255), 2, 8, 0);
-    rectangle(H, Rect(roiR.x + cimgL.cols, roiR.y, roiR.width, roiR.height), Scalar(0, 0, 255), 2, 8, 0);
-    rectangle(H, newRoi, Scalar(0, 255, 0), 2, 8, 0);
-    imshow("Combo", H);*/
-    /////////////////////////////////////////////////////////////////////////
-
-    //Readying imgs to find disparity
     if (preProcess)
         preProc();
 
@@ -701,10 +666,10 @@ bool mainLoop() {
     findDisparity(crL, crR);
 
     //threshold(disp8U, threshTemp, CLOSE_THRESH, 0, 4);    //Close cut-off plane
-    threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);//THRESH_BINARY);// | THRESH_OTSU);    //The far plane is omitted if using OTSU flag
+    threshold(disp8U, thresh, FAR_THRESH, 255, THRESH_BINARY);//THRESH_BINARY | THRESH_OTSU);    //The far plane is omitted if using OTSU flag
 
-                                                              //Use background screenshot to improve disparity map
-    if (useRealBackground) {
+    //Use background screenshot to improve disparity map
+    if (backgroundComparison) {
         absdiff(realBackground, cimgL, diff_BG_FG);
 
         cvtColor(diff_BG_FG, diff_BG_FG, COLOR_BGR2GRAY);
@@ -714,10 +679,9 @@ bool mainLoop() {
         thresh += diff_BG_FG;
     }
 
-    //Find Superpixels
+    //SUPERPIXELS
     superpixels();
 
-    //Attempts at post processing threshold
     if (postProcess)
         postProc();
 
@@ -731,11 +695,24 @@ bool mainLoop() {
 
         //For comparison purposes only
         //Old version of masking
-        //maskedL = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
-        //maskedR = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
+        //Mat maskedL = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
+        //Mat maskedR = Mat::zeros(cimgL.size().width, cimgL.size().height, cimgL.type());
         //cimgL.copyTo(maskedL, thresh);
         //cimgR.copyTo(maskedR, thresh);
         //imshow("MaskedL", maskedL);
+
+        ////////////Displaying Rectified Images side by side (debugging)/////////
+        /*Mat H;
+        hconcat(cimgL, cimgR, H);
+
+        int distBtwnLines = 20;
+        for (int l = 0; l < H.rows; l += distBtwnLines)
+        line(H, Point(0, l), Point(H.cols, l), Scalar(0, 0, 255));
+        rectangle(H, roiL, Scalar(0, 0, 255), 2, 8, 0);
+        rectangle(H, Rect(roiR.x + cimgL.cols, roiR.y, roiR.width, roiR.height), Scalar(0, 0, 255), 2, 8, 0);
+        rectangle(H, newRoi, Scalar(0, 255, 0), 2, 8, 0);
+        imshow("Combo", H);*/
+        /////////////////////////////////////////////////////////////////////////
     }
     imshow("FilteredImg", filteredImg);
     waitKey(30);
@@ -746,11 +723,7 @@ bool mainLoop() {
 
     //SAVE DEBUG IMAGES
     if (saveDebugImgs) {
-        VWdisp8U.open(string(PATH_TO_VIDEOS) + "disp8U.avi", 0, POINT_GREY_FPS, disp8U.size(), false);
-        VWsuperpixelatedImg.open(string(PATH_TO_VIDEOS) + "Superpixelated.avi", 0, POINT_GREY_FPS, superpixelatedImg.size(), false);
-        VWthresh.open(string(PATH_TO_VIDEOS) + "Thresh.avi", 0, POINT_GREY_FPS, thresh.size(), false);
-
-        VWdisp8U << disp8U;
+        VWdisp8U<<cimgL;
         VWsuperpixelatedImg << superpixelatedImg;
         VWthresh << thresh;
     }
@@ -766,14 +739,14 @@ bool mainLoop() {
 
     case 's':    //STEP THROUGH PAUSED VIDEO
         printf("Stepping into next frame...");
-        start_capture(PointGreyCam);
-        start_capture(PointGreyCam2);
+        PointGreyCam->start_capture();
+        PointGreyCam2->start_capture();
 
         rawL = PointGreyCam->get_raw_data_force_update();
         rawR = PointGreyCam2->get_raw_data_force_update();
 
-        stop_capture(PointGreyCam);
-        stop_capture(PointGreyCam2);
+        PointGreyCam->stop_capture();
+        PointGreyCam2->stop_capture();
 
         break;
 
@@ -784,7 +757,7 @@ bool mainLoop() {
         waitKey(30);
         realBackground = cimgL;
         imwrite("DebugImgs/background.bmp", realBackground);
-        useRealBackground = true;
+        backgroundComparison = true;
         break;
 
     case 'c':  //SAVES POINT CLOUD TO .PLY FILE
@@ -796,24 +769,24 @@ bool mainLoop() {
         break;
 
     case 't': //TOGGLES USE REAL BACKGROUND
-        if (useRealBackground)
-            useRealBackground = false;
+        if (backgroundComparison)
+            backgroundComparison = false;
         else
-            useRealBackground = true;
+            backgroundComparison = true;
         break;
     case 'p':    //PAUSE PROGRAM
         if (!paused) {
             printf("===============================\n");
             printf("Capture Paused - Press 'p' to continue capturing\n");
-            stop_capture(PointGreyCam);
-            stop_capture(PointGreyCam2);
+            PointGreyCam->stop_capture();
+            PointGreyCam2->stop_capture();
             paused = true;
         }
         else {
             printf("===============================\n");
             printf("Resuming Capture...\n");
-            start_capture(PointGreyCam);
-            start_capture(PointGreyCam2);
+            PointGreyCam->start_capture();
+            PointGreyCam2->start_capture();
             paused = false;
         }
         break;
@@ -871,7 +844,7 @@ int main(int argc, char** argv) {
     String fakeBackgroundImgfn = parser.get<string>("fakeBackground");
     if (fakeBackgroundImgfn == "none")
         useFakeBackground = false;
-    if (cvHaveImageReader("DebugImgs/background.bmp")) {
+    if (cvHaveImageReader("DebugImgs/background.bmp") && backgroundComparison) {
         realBackground = imread("DebugImgs/background.bmp", IMREAD_COLOR);
     }
 
@@ -887,7 +860,18 @@ int main(int argc, char** argv) {
         init_openGL(argc, argv);
     }
 
-    if (!webcam) {
+    if (saveDebugImgs) {
+        if (
+            !VWdisp8U.open(string(PATH_TO_VIDEOS) + "disp8U.avi", 0, POINT_GREY_FPS, disp8U.size()) ||
+            !VWsuperpixelatedImg.open(string(PATH_TO_VIDEOS) + "Superpixelated.avi", 0, POINT_GREY_FPS, superpixelatedImg.size()) ||
+            !VWthresh.open(string(PATH_TO_VIDEOS) + "Thresh.avi", 0, POINT_GREY_FPS, thresh.size())
+            )
+        {
+            cout << "Error opening files to write video.\n";
+        }
+    }
+
+    if (!video) {
         cimgL = imread(imgLfn, IMREAD_COLOR);
         cimgR = imread(imgRfn, IMREAD_COLOR);
 
@@ -911,9 +895,6 @@ int main(int argc, char** argv) {
 
         disp16S = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_16S);
         disp8U = Mat(FRAME_HEIGHT, FRAME_WIDTH, CV_8UC1);
-
-        PointGreyCam->set_trigger_mode(false);
-        PointGreyCam2->set_trigger_mode(false);
 
         //Initial read/demosaic
         do {
@@ -962,19 +943,18 @@ int main(int argc, char** argv) {
 
     //MAIN LOOP: Read, Find Disp, Superpixelate, Filter, Display 3D
 
-    if (webcam) {   //Start with a paused frame
-        printf("===============================\n");
-        printf("Capture Paused - Press 'p' to continue capturing\n");
-        stop_capture(PointGreyCam);
-        stop_capture(PointGreyCam2);
-        paused = true;
+    if (video) {   //Start with a paused frame
+        //printf("===============================\n");
+        //printf("Capture Paused - Press 'p' to continue capturing\n");
+        //paused = true;
     }
 
-    if (webcam) {
+    if (video) {
         while (mainLoop()) {}
     }
     else {
-        if (true) {
+        if (true) {//TODO: Implement feature that only re-runs through entire pipeline when something is changed
+                    //This will allow much higher resolution images to be processed w/o too much delay
             mainLoop();
         }
     }
